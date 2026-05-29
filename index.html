@@ -128,6 +128,7 @@
 </section>
 
 <div class="container">
+    <!-- استخدم label ولكن بدون مستمعات click إضافية -->
     <label class="upload-area" id="uploadLabel">
         <p>📁 Tap to select an image</p>
         <input type="file" id="fileInput" accept="image/*">
@@ -217,25 +218,23 @@ let ctx = resultCanvas.getContext('2d');
 let undoStack = [];
 
 // ---- الأدوات ----
-let activeTool = null; // 'brush' | 'lasso'
+let activeTool = null;
 let brushSize = 20;
 let isDrawing = false;
 
 // متغيرات اللاسو
-let lassoPoints = []; // {x, y} نسبة إلى canvas
+let lassoPoints = [];
 let lassoActive = false;
+let lassoDrawing = false;
 
-// ---- دوال مساعدة للتحويل إلى إحداثيات canvas ----
+// ---- دوال مساعدة ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
     const scaleY = resultCanvas.height / rect.height;
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-        x: (clientX - rect.left) * scaleX,
-        y: (clientY - rect.top) * scaleY
-    };
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
 }
 
 // ---- إدارة الأدوات ----
@@ -244,9 +243,8 @@ function disableAllTools() {
         resultCanvas.classList.remove('brushing');
     } else if (activeTool === 'lasso') {
         resultCanvas.classList.remove('lassoing');
-        // إنهاء أي لاسو غير مكتمل
         if (lassoPoints.length > 0) {
-            drawFinalLasso(); // نغلق تلقائياً
+            drawFinalLasso();
         }
     }
     activeTool = null;
@@ -271,14 +269,14 @@ function enableLasso() {
     activeTool = 'lasso';
     lassenToolBtn.classList.add('active');
     resultCanvas.classList.add('lassoing');
-    toolSettings.style.display = 'none'; // لا إعدادات خاصة الآن
+    toolSettings.style.display = 'none';
     lassoPoints = [];
     lassoActive = false;
+    lassoDrawing = false;
     deleteSelectionBtn.style.display = 'none';
     addLassoListeners();
 }
 
-// ---- المستمعون لكل أداة ----
 function removeAllToolListeners() {
     removeBrushListeners();
     removeLassoListeners();
@@ -336,8 +334,6 @@ function removeBrushListeners() {
 }
 
 // === اللاسو ===
-let lassoDrawing = false;
-
 function lassoStart(e) {
     e.preventDefault();
     lassoDrawing = true;
@@ -365,14 +361,11 @@ function lassoEnd(e) {
         drawLassoPreview();
         return;
     }
-    // إغلاق المسار تلقائياً
     drawFinalLasso();
     deleteSelectionBtn.style.display = 'inline-block';
 }
 
 function drawLassoPreview() {
-    // رسم خط مؤقت للاسو على canvas آخر (overlay) أو نعيد رسم الصورة + خطوط
-    // سنعيد رسم النتيجة الحالية مع خطوط التحديد
     restoreCurrentImage();
     if (lassoPoints.length < 2) return;
     ctx.save();
@@ -429,18 +422,15 @@ function deleteLassoArea() {
     ctx.closePath();
     ctx.fill();
     ctx.restore();
-    // تحديث blob النتيجة بالحالة الجديدة
     resultCanvas.toBlob(blob => {
         if (blob) {
             resultBlob = blob;
-            URL.revokeObjectURL(resultBlob);
         }
     }, 'image/png');
-    // إنهاء التحديد
     lassoPoints = [];
     lassoActive = false;
     deleteSelectionBtn.style.display = 'none';
-    drawLassoPreview(); // لإزالة أي خطوط
+    drawLassoPreview();
 }
 
 function addLassoListeners() {
@@ -465,55 +455,42 @@ function removeLassoListeners() {
 
 // ---- أزرار الأدوات ----
 brushToolBtn.addEventListener('click', () => {
-    if (activeTool === 'brush') {
-        disableAllTools();
-    } else {
-        enableBrush();
-    }
+    if (activeTool === 'brush') disableAllTools();
+    else enableBrush();
 });
 
 lassenToolBtn.addEventListener('click', () => {
-    if (activeTool === 'lasso') {
-        disableAllTools();
-    } else {
-        enableLasso();
-    }
+    if (activeTool === 'lasso') disableAllTools();
+    else enableLasso();
 });
 
-deleteSelectionBtn.addEventListener('click', () => {
-    deleteLassoArea();
-});
+deleteSelectionBtn.addEventListener('click', deleteLassoArea);
 
-// ---- تحويل الصورة إلى PNG بالجودة القصوى ----
+// ---- تحويل الصورة (بسيط وآمن) ----
 function convertToPNG(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
             let w = img.width, h = img.height;
             if (w > MAX_SIZE || h > MAX_SIZE) {
-                if (w > h) {
-                    h = Math.round((h / w) * MAX_SIZE);
-                    w = MAX_SIZE;
-                } else {
-                    w = Math.round((w / h) * MAX_SIZE);
-                    h = MAX_SIZE;
-                }
+                if (w > h) { h = Math.round((h/w)*MAX_SIZE); w = MAX_SIZE; }
+                else { w = Math.round((w/h)*MAX_SIZE); h = MAX_SIZE; }
             }
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/png', 1.0);
+            canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/png', 1.0);
         };
-        img.onerror = () => reject(new Error('load failed'));
+        img.onerror = () => reject(new Error('Image load error'));
         img.src = URL.createObjectURL(file);
     });
 }
 
-// ---- رفع صورة ----
-fileInput.addEventListener('change', async e => {
-    if (!e.target.files[0]) return;
-    resetAll();
+// ---- رفع صورة (بسيط جداً) ----
+fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
+    if (!file) return;
+    resetAll();
     currentFile = file;
     originalImg.src = URL.createObjectURL(file);
     preview.style.display = 'flex';
@@ -522,9 +499,13 @@ fileInput.addEventListener('change', async e => {
     try {
         pngBlob = await convertToPNG(file);
         showToast('✅ Image uploaded successfully!');
-    } catch { alert('Cannot process this image.'); removeBtn.disabled = true; }
+    } catch (err) {
+        alert('Cannot process this image.');
+        removeBtn.disabled = true;
+    }
 });
 
+// دعم السحب والإفلات
 uploadLabel.addEventListener('dragover', e => { e.preventDefault(); uploadLabel.style.borderColor = '#8b5cf6'; });
 uploadLabel.addEventListener('dragleave', () => uploadLabel.style.borderColor = '#333');
 uploadLabel.addEventListener('drop', async e => {
@@ -538,8 +519,13 @@ uploadLabel.addEventListener('drop', async e => {
     preview.style.display = 'flex';
     removeBtn.disabled = false;
     uploadLabel.querySelector('p').innerText = file.name;
-    try { pngBlob = await convertToPNG(file); showToast('✅ Image uploaded!'); }
-    catch { alert('Cannot process.'); removeBtn.disabled = true; }
+    try {
+        pngBlob = await convertToPNG(file);
+        showToast('✅ Image uploaded!');
+    } catch (err) {
+        alert('Cannot process.');
+        removeBtn.disabled = true;
+    }
 });
 
 // ---- تقدم وهمي ----
@@ -585,4 +571,17 @@ removeBtn.addEventListener('click', async () => {
             ctx = resultCanvas.getContext('2d');
             ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
             ctx.drawImage(img, 0, 0);
-            toolbox.style.disp
+            toolbox.style.display = 'block';
+            downloadBtn.style.display = 'block';
+            disableAllTools();
+            saveUndoState();
+            fake.complete();
+            showToast('🎉 Background removed! Use Brush or Lasso to refine.');
+        };
+        img.src = URL.createObjectURL(resultBlob);
+    } catch (err) {
+        alert('Error: ' + err.message);
+        progressText.textContent = 'Error';
+    } finally {
+        removeBtn.disabled = false;
+        setTimeout(() => { progres
