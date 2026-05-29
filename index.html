@@ -86,7 +86,7 @@
 <div class="container">
     <div class="upload-area" id="uploadArea">
         <p>📁 Tap here to select an image</p>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -131,7 +131,7 @@
 <script type="module">
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
-// Toast
+// ---- Toast ----
 function showToast(msg) {
     const c = document.getElementById('toast-container');
     const t = document.createElement('div');
@@ -141,7 +141,7 @@ function showToast(msg) {
     setTimeout(() => { if (t.parentNode) t.remove(); }, 3000);
 }
 
-// DOM
+// ---- DOM ----
 const fileInput = document.getElementById('fileInput');
 const removeBtn = document.getElementById('removeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -171,18 +171,14 @@ let brushSize = 20;
 // ---- فتح نافذة الرفع ----
 uploadArea.addEventListener('click', () => fileInput.click());
 
-// ---- رفع الصورة ----
+// ---- رفع الصورة (JPEG, PNG فقط) ----
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    // السماح فقط بصيغ JPEG و PNG و WebP
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-        alert('Please select a JPG, PNG, or WebP image.');
+    if (!['image/jpeg', 'image/png'].includes(file.type)) {
+        alert('Please select a JPG or PNG image.');
         return;
     }
-
     resetAll();
     currentFile = file;
     originalImg.src = URL.createObjectURL(file);
@@ -201,37 +197,16 @@ function getCanvasCoords(e) {
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
 }
-
 function eraseAt(x, y) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath(); ctx.arc(x, y, brushSize/2, 0, Math.PI*2); ctx.fill(); ctx.restore();
 }
-
-function brushStart(e) {
-    if (!brushActive) return;
-    e.preventDefault();
-    isDrawing = true;
-    const p = getCanvasCoords(e);
-    eraseAt(p.x, p.y);
-    setTimeout(saveUndoState, 10);
-}
-
-function brushMove(e) {
-    if (!isDrawing || !brushActive) return;
-    e.preventDefault();
-    const p = getCanvasCoords(e);
-    eraseAt(p.x, p.y);
-}
-
-function brushEnd() { isDrawing = false; }
-
+function brushStart(e) { if(!brushActive) return; e.preventDefault(); isDrawing=true; let p=getCanvasCoords(e); eraseAt(p.x,p.y); setTimeout(saveUndoState,10); }
+function brushMove(e) { if(!isDrawing||!brushActive) return; e.preventDefault(); let p=getCanvasCoords(e); eraseAt(p.x,p.y); }
+function brushEnd() { isDrawing=false; }
 function addBrushListeners() {
-    resultCanvas.addEventListener('touchstart', brushStart, { passive: false });
-    resultCanvas.addEventListener('touchmove', brushMove, { passive: false });
+    resultCanvas.addEventListener('touchstart', brushStart, {passive:false});
+    resultCanvas.addEventListener('touchmove', brushMove, {passive:false});
     resultCanvas.addEventListener('touchend', brushEnd);
     resultCanvas.addEventListener('touchcancel', brushEnd);
     resultCanvas.addEventListener('mousedown', brushStart);
@@ -239,7 +214,6 @@ function addBrushListeners() {
     resultCanvas.addEventListener('mouseup', brushEnd);
     resultCanvas.addEventListener('mouseleave', brushEnd);
 }
-
 function removeBrushListeners() {
     resultCanvas.removeEventListener('touchstart', brushStart);
     resultCanvas.removeEventListener('touchmove', brushMove);
@@ -250,58 +224,20 @@ function removeBrushListeners() {
     resultCanvas.removeEventListener('mouseup', brushEnd);
     resultCanvas.removeEventListener('mouseleave', brushEnd);
 }
-
-function enableBrush() {
-    brushActive = true;
-    brushToggleBtn.textContent = '🖌️ Brush Active (tap to disable)';
-    brushSettings.style.display = 'block';
-    resultCanvas.classList.add('brushing');
-    addBrushListeners();
-}
-
-function disableBrush() {
-    brushActive = false;
-    isDrawing = false;
-    brushToggleBtn.textContent = '🖌️ Enable Brush Eraser';
-    brushSettings.style.display = 'none';
-    resultCanvas.classList.remove('brushing');
-    removeBrushListeners();
-}
-
-brushToggleBtn.addEventListener('click', () => {
-    if (brushActive) disableBrush();
-    else enableBrush();
-});
-
-brushSizeInput.addEventListener('input', e => {
-    brushSize = +e.target.value;
-    brushSizeValue.textContent = brushSize;
-});
+function enableBrush() { brushActive=true; brushToggleBtn.textContent='🖌️ Brush Active (tap to disable)'; brushSettings.style.display='block'; resultCanvas.classList.add('brushing'); addBrushListeners(); }
+function disableBrush() { brushActive=false; isDrawing=false; brushToggleBtn.textContent='🖌️ Enable Brush Eraser'; brushSettings.style.display='none'; resultCanvas.classList.remove('brushing'); removeBrushListeners(); }
+brushToggleBtn.addEventListener('click', ()=> brushActive? disableBrush() : enableBrush());
+brushSizeInput.addEventListener('input', e=> { brushSize=+e.target.value; brushSizeValue.textContent=brushSize; });
 
 // ---- تقدم وهمي ----
 function startFakeProgress() {
-    progressContainer.style.display = 'block';
-    progressFill.style.width = '0%';
-    progressText.textContent = 'Processing… 0%';
-    let percent = 0;
-    const interval = setInterval(() => {
-        if (percent < 90) {
-            percent += 1;
-            progressFill.style.width = percent + '%';
-            progressText.textContent = 'Processing… ' + percent + '%';
-        } else {
-            progressFill.style.width = '90%';
-            progressText.textContent = 'Processing… 90%';
-        }
-    }, 300);
-    return {
-        stop: () => clearInterval(interval),
-        complete: () => {
-            clearInterval(interval);
-            progressFill.style.width = '100%';
-            progressText.textContent = 'Done!';
-        }
-    };
+    progressContainer.style.display='block'; progressFill.style.width='0%'; progressText.textContent='Processing… 0%';
+    let percent=0;
+    const interval=setInterval(()=>{
+        if(percent<90){ percent+=1; progressFill.style.width=percent+'%'; progressText.textContent='Processing… '+percent+'%'; }
+        else { progressFill.style.width='90%'; progressText.textContent='Processing… 90%'; }
+    },300);
+    return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
 }
 
 // ---- إزالة الخلفية (بدون معالجة مسبقة) ----
@@ -311,7 +247,7 @@ removeBtn.addEventListener('click', async () => {
     const fake = startFakeProgress();
 
     try {
-        // نمرر الملف مباشرة – المكتبة تدعم JPEG, PNG, WebP
+        // تمرير الملف مباشرة - يدعم JPEG / PNG بشكل كامل
         resultBlob = await removeBackground(currentFile, { model: 'isnet_quint8' }).catch(() =>
             removeBackground(currentFile, { model: 'medium' })
         );
@@ -332,7 +268,7 @@ removeBtn.addEventListener('click', async () => {
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
-        alert('Cannot process this image. Please ensure it is a valid JPG, PNG, or WebP file.');
+        alert('Cannot process this image. Please ensure it is a valid JPG or PNG file.');
         progressText.textContent = 'Error';
     } finally {
         removeBtn.disabled = false;
@@ -341,42 +277,27 @@ removeBtn.addEventListener('click', async () => {
 });
 
 // ---- Undo ----
-function saveUndoState() {
-    if (undoStack.length > 20) undoStack.shift();
-    undoStack.push(resultCanvas.toDataURL());
-}
-
-undoBtn.addEventListener('click', () => {
-    if (undoStack.length > 1) {
+function saveUndoState() { if(undoStack.length>20) undoStack.shift(); undoStack.push(resultCanvas.toDataURL()); }
+undoBtn.addEventListener('click', ()=>{
+    if(undoStack.length>1){
         undoStack.pop();
-        const prev = undoStack[undoStack.length - 1];
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-            ctx.drawImage(img, 0, 0);
-            resultCanvas.toBlob(blob => { if (blob) resultBlob = blob; }, 'image/png');
-        };
-        img.src = prev;
+        const prev=undoStack[undoStack.length-1];
+        const img=new Image();
+        img.onload=()=>{ ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height); ctx.drawImage(img,0,0); resultCanvas.toBlob(b=>{if(b)resultBlob=b;},'image/png'); };
+        img.src=prev;
     }
 });
-
-downloadBtn.addEventListener('click', () => {
-    const a = document.createElement('a');
-    a.href = resultCanvas.toDataURL('image/png');
-    a.download = 'transparent.png';
+downloadBtn.addEventListener('click', ()=>{
+    const a=document.createElement('a');
+    a.href=resultCanvas.toDataURL('image/png');
+    a.download='transparent.png';
     a.click();
 });
 
 function resetAll() {
-    resultBlob = null;
-    disableBrush();
-    brushControls.style.display = 'none';
-    downloadBtn.style.display = 'none';
-    undoStack = [];
-    ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-    progressContainer.style.display = 'none';
+    resultBlob=null; disableBrush(); brushControls.style.display='none'; downloadBtn.style.display='none';
+    undoStack=[]; ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height); progressContainer.style.display='none';
 }
 </script>
-
 </body>
 </html>
