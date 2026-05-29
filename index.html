@@ -249,7 +249,7 @@
         }
     });
 
-    // ---- حذف الخلفية ----
+    // ---- حذف الخلفية (تم التصحيح هنا) ----
     removeBtn.addEventListener('click', async () => {
         if (!model || !processor) {
             alert('Please preload the AI model first!');
@@ -263,7 +263,9 @@
         progressFill.style.width = '10%';
 
         try {
-            const img = await RawImage.fromURL(URL.createObjectURL(currentFile));
+            // استخدام fromBlob بدلاً من fromURL لإصلاح مشكلة "failed to fetch"
+            const img = await RawImage.fromBlob(currentFile);
+            
             progressFill.style.width = '40%';
             const inputs = await processor(img);
             progressFill.style.width = '70%';
@@ -327,12 +329,10 @@
         });
     }
 
-    // محاولة التحميل التلقائي عند الخمول
+    // محاولة التحميل التلقائي عند الخمول (اختياري)
     if (window.requestIdleCallback) {
         requestIdleCallback(() => {
-            if (!model && typeof preloadModel === 'function') {
-                // لا نفعل شيء، الأفضل ترك المستخدم يضغط الزر ليقرأ التعليمات
-            }
+            // لا نفعل شيء، الأفضل ترك المستخدم يضغط الزر ليقرأ التعليمات
         });
     }
 </script>
