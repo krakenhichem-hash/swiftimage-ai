@@ -20,6 +20,8 @@ header{padding:20px;text-align:center;border-bottom:1px solid #222}
 footer{text-align:center;padding:30px;color:#888}
 button{background:#8b5cf6;color:white;border:none;padding:14px 24px;border-radius:12px;cursor:pointer}
 </style>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 </head>
 <body>
 
@@ -73,11 +75,12 @@ let processor = null;
 window.preloadModel = async function(){
 if(model) return alert("Model already loaded");
 alert("Loading AI model...");
-model = await AutoModel.from_pretrained('briaai/RMBG-1.4',{config:{model_type:'custom'}});
-processor = await AutoProcessor.from_pretrained('briaai/RMBG-1.4');
+model = await AutoModel.from_pretrained('Xenova/modnet',{config:{model_type:'custom'}});
+processor = await AutoProcessor.from_pretrained('Xenova/modnet');
 alert("AI model loaded");
 }
 </script>
 
+<script>if(window.requestIdleCallback){requestIdleCallback(()=>{if(typeof preloadModel==="function"){preloadModel();}});}</script>
 </body>
 </html>
