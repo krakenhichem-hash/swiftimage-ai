@@ -36,7 +36,7 @@
         .preview-row { display:flex; flex-direction:column; gap:20px; margin:20px 0; }
         .preview-row img, .preview-row canvas { max-width:100%; border-radius:12px; border:1px solid #333; touch-action:none; }
         
-        /* خلفية متقلبة لإظهار الشفافية */
+        /* خلفية شطرنجية للشفافية */
         .result-wrapper {
             display: inline-block;
             background-image: 
@@ -49,19 +49,49 @@
             border-radius: 12px;
             padding: 2px;
         }
-        .result-wrapper canvas {
-            display: block;
-            border-radius: 10px;
-        }
+        .result-wrapper canvas { display: block; border-radius: 10px; }
         
         #progress-bar { width:100%; height:8px; background:#222; border-radius:8px; margin:10px 0; display:none; }
         #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:8px; }
         
         .brush-controls { display:none; margin:10px 0; text-align:center; }
         .brush-controls input[type="range"] { width:100%; margin:5px 0; }
-        .btn-secondary { background:#333; display:inline-block; width:auto; padding:10px 20px; margin:5px; }
+        .btn-secondary { background:#333; display:inline-block; width:auto; padding:10px 20px; margin:5px; border-radius:12px; cursor:pointer; }
         footer { text-align:center; padding:30px; color:#888; }
         footer a { color:#8b5cf6; margin:0 10px; }
+        
+        /* إشعارات النخب */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            background: #8b5cf6;
+            color: #fff;
+            padding: 14px 28px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+            animation: slideDown 0.4s ease, fadeOut 0.4s 1.6s ease forwards;
+            pointer-events: auto;
+            white-space: nowrap;
+        }
+        @keyframes slideDown {
+            from { opacity:0; transform:translateY(-20px); }
+            to { opacity:1; transform:translateY(0); }
+        }
+        @keyframes fadeOut {
+            to { opacity:0; transform:translateY(-10px); }
+        }
         
         @media (max-width:400px) {
             .hero h1 { font-size:2rem; }
@@ -69,6 +99,8 @@
     </style>
 </head>
 <body>
+<div id="toast-container"></div>
+
 <header><h2>SwiftImage AI</h2></header>
 <section class="hero">
     <h1><span>Remove Backgrounds</span> Instantly</h1>
@@ -94,7 +126,6 @@
         </div>
     </div>
     
-    <!-- أدوات الفرشاة -->
     <div class="brush-controls" id="brushControls">
         <button id="brushToggleBtn" class="btn-secondary">🖌️ Enable Brush Eraser</button>
         <div id="brushSettings" style="display:none;margin-top:5px;">
@@ -120,6 +151,19 @@
 <script type="module">
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
+// ---- Toast Notification ----
+function showToast(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    container.appendChild(toast);
+    // إزالة العنصر بعد انتهاء الأنيميشن (2 ثانية)
+    setTimeout(() => {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 2000);
+}
+
 // ---- DOM Elements ----
 const fileInput = document.getElementById('fileInput');
 const removeBtn = document.getElementById('removeBtn');
@@ -137,7 +181,6 @@ const brushSizeInput = document.getElementById('brushSize');
 const brushSizeValue = document.getElementById('brushSizeValue');
 const undoBtn = document.getElementById('undoBtn');
 
-// ---- State ----
 let currentFile = null;
 let pngBlob = null;
 const MAX_SIZE = 800;
@@ -191,6 +234,7 @@ fileInput.addEventListener('change', async (e) => {
         uploadLabel.querySelector('p').innerText = file.name;
         try {
             pngBlob = await convertToPNG(file);
+            showToast('✅ Image uploaded successfully!');
         } catch (err) {
             alert('Cannot process this image. Try another format.');
             removeBtn.disabled = true;
@@ -212,8 +256,13 @@ uploadLabel.addEventListener('drop', async (e) => {
         preview.style.display = 'flex';
         removeBtn.disabled = false;
         uploadLabel.querySelector('p').innerText = file.name;
-        try { pngBlob = await convertToPNG(file); }
-        catch (err) { alert('Cannot process this image.'); removeBtn.disabled = true; }
+        try { 
+            pngBlob = await convertToPNG(file);
+            showToast('✅ Image uploaded successfully!');
+        } catch (err) { 
+            alert('Cannot process this image.'); 
+            removeBtn.disabled = true; 
+        }
     }
 });
 
@@ -240,6 +289,7 @@ removeBtn.addEventListener('click', async () => {
             brushControls.style.display = 'block';
             downloadBtn.style.display = 'block';
             saveUndoState();
+            showToast('🎉 Background removed successfully!');
         };
         img.src = URL.createObjectURL(blob);
         progressFill.style.width = '100%';
