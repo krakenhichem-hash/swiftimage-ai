@@ -201,7 +201,7 @@ const undoBtn = document.getElementById('undoBtn');
 
 let currentFile = null;
 let pngBlob = null;
-const MAX_SIZE = 1024; // أقصى تفاصيل ممكنة
+const MAX_SIZE = 2048; // رُفع من 1024 إلى 2048 لتحسين دقة الحواف
 let resultBlob = null;
 let brushActive = false, isDrawing = false, brushSize = 20;
 let ctx = resultCanvas.getContext('2d');
@@ -352,18 +352,35 @@ function startFakeProgress() {
     };
 }
 
-// ---- إزالة الخلفية (نموذج isnet_quint8 أولاً، وإلا medium) ----
+// ---- إزالة الخلفية بنموذج isnet (الأدق للشعر) مع fallback ----
 removeBtn.addEventListener('click', async () => {
     if (!pngBlob) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        // محاولة استخدام isnet_quint8 (دقة أعلى من medium وأخف من isnet)
+        // isnet: الأدق للشعر والحواف الناعمة
+        // fallback إلى isnet_fp16 إذا فشل، ثم medium كآخر خيار
         try {
-            resultBlob = await removeBackground(pngBlob, { model: 'isnet_quint8' });
+            resultBlob = await removeBackground(pngBlob, {
+                model: 'isnet',
+                output: {
+                    quality: 1,
+                    format: 'image/png',
+                }
+            });
         } catch {
-            resultBlob = await removeBackground(pngBlob, { model: 'medium' });
+            try {
+                resultBlob = await removeBackground(pngBlob, {
+                    model: 'isnet_fp16',
+                    output: {
+                        quality: 1,
+                        format: 'image/png',
+                    }
+                });
+            } catch {
+                resultBlob = await removeBackground(pngBlob, { model: 'medium' });
+            }
         }
 
         const img = new Image();
