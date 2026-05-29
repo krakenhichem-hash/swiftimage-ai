@@ -240,15 +240,54 @@ function startFakeProgress() {
     return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
 }
 
-// ---- إزالة الخلفية (نموذج medium فقط، مع عرض الخطأ في console) ----
+// ---- دالة مساعدة لتحويل الصورة إلى PNG (للاستخدام كخطة احتياطية) ----
+async function convertToPNG(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const MAX_DIM = 1024;
+            let w = img.width, h = img.height;
+            if (w > MAX_DIM || h > MAX_DIM) {
+                const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+                w = Math.round(w * ratio); h = Math.round(h * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(blob => {
+                if (blob) {
+                    URL.revokeObjectURL(img.src);
+                    resolve(blob);
+                } else {
+                    reject(new Error('Canvas toBlob failed'));
+                }
+            }, 'image/png', 1.0);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(img.src);
+            reject(new Error('Cannot decode this image.'));
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// ---- إزالة الخلفية (مع محاولة مباشرة ثم احتياطية) ----
 removeBtn.addEventListener('click', async () => {
     if (!currentFile) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        // استخدام النموذج الأكثر ثباتاً medium فقط
-        resultBlob = await removeBackground(currentFile, { model: 'medium' });
+        // المحاولة الأولى: تمرير مباشر (سريع)
+        try {
+            resultBlob = await removeBackground(currentFile, { model: 'medium' });
+        } catch (directError) {
+            console.warn('Direct processing failed, trying with PNG conversion...');
+            // المحاولة الثانية: تحويل إلى PNG ثم إعادة المحاولة
+            const pngBlob = await convertToPNG(currentFile);
+            resultBlob = await removeBackground(pngBlob, { model: 'medium' });
+        }
 
         const img = new Image();
         img.onload = () => {
@@ -266,9 +305,8 @@ removeBtn.addEventListener('click', async () => {
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
-        // عرض الخطأ الحقيقي في وحدة التحكم
         console.error('Remove background error:', err);
-        alert('Error: ' + err.message);
+        alert('Cannot process this image. It may be corrupted or in an unsupported format.');
         progressText.textContent = 'Error';
     } finally {
         removeBtn.disabled = false;
@@ -300,4 +338,4 @@ function resetAll() {
 }
 </script>
 </body>
-</html>
+    </html>
