@@ -169,7 +169,7 @@
 </footer>
 
 <script type="module">
-import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
+import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.1.27/+esm';
 
 // ---- Toast ----
 function showToast(msg) {
@@ -359,28 +359,25 @@ removeBtn.addEventListener('click', async () => {
     const fake = startFakeProgress();
 
     try {
-        // isnet: الأدق للشعر والحواف الناعمة
-        // fallback إلى isnet_fp16 إذا فشل، ثم medium كآخر خيار
+        // إعدادات مشتركة مع publicPath صحيح لـ Vercel
+        const cdnBase = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.1.27/dist/';
+        const sharedConfig = {
+            publicPath: cdnBase,
+            output: { quality: 1, format: 'image/png' }
+        };
+
+        // isnet_fp16: أفضل توازن بين الدقة والتوافق (يعمل على معظم الأجهزة)
+        // fallback إلى medium إذا فشل
         try {
             resultBlob = await removeBackground(pngBlob, {
-                model: 'isnet',
-                output: {
-                    quality: 1,
-                    format: 'image/png',
-                }
+                ...sharedConfig,
+                model: 'isnet_fp16',
             });
         } catch {
-            try {
-                resultBlob = await removeBackground(pngBlob, {
-                    model: 'isnet_fp16',
-                    output: {
-                        quality: 1,
-                        format: 'image/png',
-                    }
-                });
-            } catch {
-                resultBlob = await removeBackground(pngBlob, { model: 'medium' });
-            }
+            resultBlob = await removeBackground(pngBlob, {
+                ...sharedConfig,
+                model: 'medium',
+            });
         }
 
         const img = new Image();
