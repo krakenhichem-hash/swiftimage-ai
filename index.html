@@ -53,7 +53,10 @@
         #progress-text { text-align:center; font-size:16px; color:#8b5cf6; margin-top:5px; }
 
         .brush-controls { display:none; margin:10px 0; text-align:center; }
-        .brush-controls input[type="range"] { width:100%; margin:5px 0; }
+        .brush-controls .mode-btn { display:inline-block; width:auto; padding:10px 18px; margin:5px; border-radius:12px; background:#333; color:#fff; cursor:pointer; border:none; font-size:14px; }
+        .brush-controls .mode-btn.active { background:#8b5cf6; }
+        .brush-settings { display:none; margin-top:5px; }
+        .brush-settings input[type="range"] { width:100%; margin:5px 0; }
         .btn-secondary { background:#333; color:#fff; border:none; cursor:pointer; font-size:14px; padding:10px 16px; margin:4px; border-radius:10px; display:inline-block; width:auto; }
         footer { text-align:center; padding:30px; color:#888; }
         footer a { color:#8b5cf6; margin:0 10px; }
@@ -107,12 +110,13 @@
     </div>
 
     <div class="brush-controls" id="brushControls">
-        <button id="brushToggleBtn" class="btn-secondary">🖌️ Enable Brush Eraser</button>
-        <div id="brushSettings" style="display:none;margin-top:5px;">
+        <button id="eraseModeBtn" class="mode-btn active">🧹 Erase</button>
+        <button id="restoreModeBtn" class="mode-btn">🔄 Restore</button>
+        <div class="brush-settings" id="brushSettings">
             <label>Brush Size: <span id="brushSizeValue">20</span>px</label>
             <input type="range" id="brushSize" min="5" max="80" value="20">
-            <button id="undoBtn" class="btn-secondary">↩ Undo Last Stroke</button>
         </div>
+        <button id="undoBtn" class="btn-secondary">↩ Undo</button>
     </div>
 
     <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
@@ -153,19 +157,21 @@ const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
 const uploadArea = document.getElementById('uploadArea');
 const brushControls = document.getElementById('brushControls');
-const brushToggleBtn = document.getElementById('brushToggleBtn');
+const eraseModeBtn = document.getElementById('eraseModeBtn');
+const restoreModeBtn = document.getElementById('restoreModeBtn');
 const brushSettings = document.getElementById('brushSettings');
 const brushSizeInput = document.getElementById('brushSize');
 const brushSizeValue = document.getElementById('brushSizeValue');
 const undoBtn = document.getElementById('undoBtn');
 
 let currentFile = null;
+let originalImage = null; // الصورة الأصلية كـ Image element
 let resultBlob = null;
 let ctx = resultCanvas.getContext('2d');
 let undoStack = [];
 
 let brushActive = false;
-let isDrawing = false;
+let brushMode = 'erase'; // 'erase' or 'restore'
 let brushSize = 20;
 
 // ---- فتح نافذة الرفع ----
@@ -181,6 +187,11 @@ fileInput.addEventListener('change', (e) => {
     }
     resetAll();
     currentFile = file;
+    // تحميل الصورة الأصلية في عنصر Image لاستخدامها لاحقاً في الاستعادة
+    const img = new Image();
+    img.onload = () => { originalImage = img; };
+    img.src = URL.createObjectURL(file);
+
     originalImg.src = URL.createObjectURL(file);
     preview.style.display = 'flex';
     removeBtn.disabled = false;
@@ -188,7 +199,7 @@ fileInput.addEventListener('change', (e) => {
     showToast('✅ Image uploaded successfully!');
 });
 
-// ---- الفرشاة (دون تغيير) ----
+// ---- الفرشاة (محو واستعادة) ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -197,13 +208,49 @@ function getCanvasCoords(e) {
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
     return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
 }
-function eraseAt(x, y) {
-    ctx.save(); ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath(); ctx.arc(x, y, brushSize/2, 0, Math.PI*2); ctx.fill(); ctx.restore();
+
+function applyBrush(x, y) {
+    if (brushMode === 'erase') {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, brushSize/2, 0, Math.PI*2);
+        ctx.fill();
+        ctx.restore();
+    } else if (brushMode === 'restore' && originalImage) {
+        // رسم جزء من الصورة الأصلية لاستعادة المنطقة
+        const cw = resultCanvas.width;
+        const ch = resultCanvas.height;
+        const iw = originalImage.width;
+        const ih = originalImage.height;
+        // حساب المقياس (نفترض نفس النسبة)
+        const scale = Math.min(cw / iw, ch / ih);
+        const srcSize = brushSize / scale;
+        const srcX = (x / scale) - srcSize/2;
+        const srcY = (y / scale) - srcSize/2;
+        ctx.save();
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(originalImage, srcX, srcY, srcSize, srcSize, x - brushSize/2, y - brushSize/2, brushSize, brushSize);
+        ctx.restore();
+    }
 }
-function brushStart(e) { if(!brushActive) return; e.preventDefault(); isDrawing=true; let p=getCanvasCoords(e); eraseAt(p.x,p.y); setTimeout(saveUndoState,10); }
-function brushMove(e) { if(!isDrawing||!brushActive) return; e.preventDefault(); let p=getCanvasCoords(e); eraseAt(p.x,p.y); }
-function brushEnd() { isDrawing=false; }
+
+function brushStart(e) {
+    if (!brushActive) return;
+    e.preventDefault();
+    isDrawing = true;
+    const p = getCanvasCoords(e);
+    applyBrush(p.x, p.y);
+    setTimeout(saveUndoState, 10);
+}
+function brushMove(e) {
+    if (!isDrawing || !brushActive) return;
+    e.preventDefault();
+    const p = getCanvasCoords(e);
+    applyBrush(p.x, p.y);
+}
+function brushEnd() { isDrawing = false; }
+
 function addBrushListeners() {
     resultCanvas.addEventListener('touchstart', brushStart, {passive:false});
     resultCanvas.addEventListener('touchmove', brushMove, {passive:false});
@@ -224,10 +271,49 @@ function removeBrushListeners() {
     resultCanvas.removeEventListener('mouseup', brushEnd);
     resultCanvas.removeEventListener('mouseleave', brushEnd);
 }
-function enableBrush() { brushActive=true; brushToggleBtn.textContent='🖌️ Brush Active (tap to disable)'; brushSettings.style.display='block'; resultCanvas.classList.add('brushing'); addBrushListeners(); }
-function disableBrush() { brushActive=false; isDrawing=false; brushToggleBtn.textContent='🖌️ Enable Brush Eraser'; brushSettings.style.display='none'; resultCanvas.classList.remove('brushing'); removeBrushListeners(); }
-brushToggleBtn.addEventListener('click', ()=> brushActive? disableBrush() : enableBrush());
-brushSizeInput.addEventListener('input', e=> { brushSize=+e.target.value; brushSizeValue.textContent=brushSize; });
+
+function enableBrush() {
+    brushActive = true;
+    resultCanvas.classList.add('brushing');
+    brushSettings.style.display = 'block';
+    addBrushListeners();
+}
+function disableBrush() {
+    brushActive = false;
+    isDrawing = false;
+    resultCanvas.classList.remove('brushing');
+    brushSettings.style.display = 'none';
+    removeBrushListeners();
+}
+
+// ---- أزرار الوضع ----
+eraseModeBtn.addEventListener('click', () => {
+    if (brushActive && brushMode === 'erase') {
+        disableBrush();
+        eraseModeBtn.classList.remove('active');
+    } else {
+        brushMode = 'erase';
+        eraseModeBtn.classList.add('active');
+        restoreModeBtn.classList.remove('active');
+        if (!brushActive) enableBrush();
+    }
+});
+restoreModeBtn.addEventListener('click', () => {
+    if (brushActive && brushMode === 'restore') {
+        disableBrush();
+        restoreModeBtn.classList.remove('active');
+    } else {
+        brushMode = 'restore';
+        restoreModeBtn.classList.add('active');
+        eraseModeBtn.classList.remove('active');
+        if (!brushActive) enableBrush();
+    }
+});
+
+brushSizeInput.addEventListener('input', e => {
+    brushSize = +e.target.value;
+    brushSizeValue.textContent = brushSize;
+});
 
 // ---- تقدم وهمي ----
 function startFakeProgress() {
@@ -240,7 +326,7 @@ function startFakeProgress() {
     return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
 }
 
-// ---- دالة مساعدة لتحويل الصورة إلى PNG (للاستخدام كخطة احتياطية) ----
+// ---- دالة تحويل إلى PNG (للخطة الاحتياطية) ----
 async function convertToPNG(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -256,35 +342,26 @@ async function convertToPNG(file) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, w, h);
             canvas.toBlob(blob => {
-                if (blob) {
-                    URL.revokeObjectURL(img.src);
-                    resolve(blob);
-                } else {
-                    reject(new Error('Canvas toBlob failed'));
-                }
+                if (blob) { URL.revokeObjectURL(img.src); resolve(blob); }
+                else reject(new Error('Canvas toBlob failed'));
             }, 'image/png', 1.0);
         };
-        img.onerror = () => {
-            URL.revokeObjectURL(img.src);
-            reject(new Error('Cannot decode this image.'));
-        };
+        img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Cannot decode this image.')); };
         img.src = URL.createObjectURL(file);
     });
 }
 
-// ---- إزالة الخلفية (مع محاولة مباشرة ثم احتياطية) ----
+// ---- إزالة الخلفية ----
 removeBtn.addEventListener('click', async () => {
     if (!currentFile) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        // المحاولة الأولى: تمرير مباشر (سريع)
         try {
             resultBlob = await removeBackground(currentFile, { model: 'medium' });
         } catch (directError) {
             console.warn('Direct processing failed, trying with PNG conversion...');
-            // المحاولة الثانية: تحويل إلى PNG ثم إعادة المحاولة
             const pngBlob = await convertToPNG(currentFile);
             resultBlob = await removeBackground(pngBlob, { model: 'medium' });
         }
@@ -298,10 +375,14 @@ removeBtn.addEventListener('click', async () => {
             ctx.drawImage(img, 0, 0);
             brushControls.style.display = 'block';
             downloadBtn.style.display = 'block';
-            disableBrush();
+            // تفعيل وضع المحو افتراضياً
+            brushMode = 'erase';
+            eraseModeBtn.classList.add('active');
+            restoreModeBtn.classList.remove('active');
+            disableBrush(); // الفرشاة غير نشطة حتى يختار المستخدم
             saveUndoState();
             fake.complete();
-            showToast('🎉 Background removed! Use brush to refine.');
+            showToast('🎉 Background removed! Use Erase or Restore brush.');
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
@@ -333,9 +414,15 @@ downloadBtn.addEventListener('click', ()=>{
 });
 
 function resetAll() {
-    resultBlob=null; disableBrush(); brushControls.style.display='none'; downloadBtn.style.display='none';
-    undoStack=[]; ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height); progressContainer.style.display='none';
+    resultBlob=null;
+    originalImage=null;
+    disableBrush();
+    brushControls.style.display='none';
+    downloadBtn.style.display='none';
+    undoStack=[];
+    ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height);
+    progressContainer.style.display='none';
 }
 </script>
 </body>
-    </html>
+                                                  </html>
