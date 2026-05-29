@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SwiftImage AI Background Remover</title>
+<meta name="description" content="Remove image backgrounds instantly using AI.">
+<link rel="canonical" href="https://yourdomain.com/">
+<style>
+body{background:#080810;color:#fff;font-family:Arial,sans-serif;margin:0}
+header{padding:20px;text-align:center;border-bottom:1px solid #222}
+.hero{text-align:center;padding:60px 20px}
+.hero h1{font-size:52px}
+.hero span{color:#8b5cf6}
+.container{max-width:1000px;margin:auto;padding:20px}
+.upload{border:2px dashed #333;padding:60px;text-align:center;border-radius:20px;background:#12121c}
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-top:50px}
+.card{background:#12121c;padding:24px;border-radius:18px;border:1px solid #222;text-decoration:none;color:white}
+.card:hover{border-color:#8b5cf6}
+footer{text-align:center;padding:30px;color:#888}
+button{background:#8b5cf6;color:white;border:none;padding:14px 24px;border-radius:12px;cursor:pointer}
+</style>
+</head>
+<body>
+
+<header><h2>SwiftImage AI</h2></header>
+
+<section class="hero">
+<h1>Remove Backgrounds <span>Instantly</span></h1>
+<p>AI-powered image background remover running directly in your browser.</p>
+</section>
+
+<div class="container">
+
+<div class="upload">
+<input type="file" accept="image/*">
+<p>Upload your image</p>
+<button onclick="preloadModel()">Preload AI Model</button>
+</div>
+
+<div class="tools">
+<a class="card" href="/remove-background.html">
+<h3>Remove Background</h3>
+<p>AI background removal tool.</p>
+</a>
+
+<a class="card" href="/ai-background-remover.html">
+<h3>AI Background Remover</h3>
+<p>Fast online AI cutout tool.</p>
+</a>
+
+<a class="card" href="/remove-bg-from-image.html">
+<h3>Remove BG From Image</h3>
+<p>Transparent PNG generator.</p>
+</a>
+
+<a class="card" href="/transparent-background-maker.html">
+<h3>Transparent Background Maker</h3>
+<p>Create transparent images instantly.</p>
+</a>
+</div>
+
+</div>
+
+<footer>© 2026 SwiftImage AI</footer>
+
+<script type="module">
+import { AutoModel, AutoProcessor } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+
+let model = null;
+let processor = null;
+
+window.preloadModel = async function(){
+if(model) return alert("Model already loaded");
+alert("Loading AI model...");
+model = await AutoModel.from_pretrained('briaai/RMBG-1.4',{config:{model_type:'custom'}});
+processor = await AutoProcessor.from_pretrained('briaai/RMBG-1.4');
+alert("AI model loaded");
+}
+</script>
+
+</body>
+</html>
