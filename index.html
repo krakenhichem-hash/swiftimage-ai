@@ -15,16 +15,12 @@
         .container { max-width:600px; margin:auto; }
 
         .upload-area {
-            border:2px dashed #333;
-            padding:40px 20px;
-            border-radius:20px;
-            background:#12121c;
-            text-align:center;
-            margin:20px 0;
-            cursor:pointer;
-            transition:0.3s;
+            border:2px dashed #333; padding:40px 20px; border-radius:20px;
+            background:#12121c; text-align:center; margin:20px 0;
+            cursor:pointer; transition:0.3s;
         }
         .upload-area:hover { border-color:#8b5cf6; }
+        .upload-area input[type="file"] { display:none; }
 
         button {
             display:block; width:100%; margin:10px 0; background:#8b5cf6; color:white;
@@ -72,17 +68,10 @@
             animation:slideDown 0.4s ease, fadeOut 0.4s 1.6s ease forwards;
             pointer-events:auto; white-space:nowrap;
         }
-        @keyframes slideDown {
-            from { opacity:0; transform:translateY(-20px); }
-            to { opacity:1; transform:translateY(0); }
-        }
-        @keyframes fadeOut {
-            to { opacity:0; transform:translateY(-10px); }
-        }
+        @keyframes slideDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeOut { to { opacity:0; transform:translateY(-10px); } }
 
-        @media (max-width:400px) {
-            .hero h1 { font-size:2rem; }
-        }
+        @media (max-width:400px) { .hero h1 { font-size:2rem; } }
     </style>
 </head>
 <body>
@@ -97,7 +86,7 @@
 <div class="container">
     <div class="upload-area" id="uploadArea">
         <p>📁 Tap here to select an image</p>
-        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -179,13 +168,21 @@ let brushActive = false;
 let isDrawing = false;
 let brushSize = 20;
 
-// ---- فتح نافذة رفع الملفات عند النقر على منطقة الرفع ----
+// ---- فتح نافذة الرفع ----
 uploadArea.addEventListener('click', () => fileInput.click());
 
 // ---- رفع الصورة ----
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // السماح فقط بصيغ JPEG و PNG و WebP
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('Please select a JPG, PNG, or WebP image.');
+        return;
+    }
+
     resetAll();
     currentFile = file;
     originalImg.src = URL.createObjectURL(file);
@@ -195,7 +192,7 @@ fileInput.addEventListener('change', (e) => {
     showToast('✅ Image uploaded successfully!');
 });
 
-// ---- الفرشاة ----
+// ---- الفرشاة (دون تغيير) ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -307,48 +304,16 @@ function startFakeProgress() {
     };
 }
 
-// ---- معالجة الصورة (مع احتياط) ----
-async function safePreprocessImage(file) {
-    try {
-        return await new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                const MAX_DIM = 1024;
-                let width = img.width, height = img.height;
-                if (width > MAX_DIM || height > MAX_DIM) {
-                    const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
-                    width = Math.round(width * ratio);
-                    height = Math.round(height * ratio);
-                }
-                const canvas = document.createElement('canvas');
-                canvas.width = width; canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                canvas.toBlob(blob => {
-                    if (blob) { URL.revokeObjectURL(img.src); resolve(blob); }
-                    else reject(new Error('Canvas toBlob failed'));
-                }, 'image/png', 1.0);
-            };
-            img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Image load error')); };
-            img.src = URL.createObjectURL(file);
-        });
-    } catch (e) {
-        console.warn('Preprocessing failed, using original file:', e);
-        showToast('⚡ Using original image format...');
-        return file;
-    }
-}
-
-// ---- إزالة الخلفية ----
+// ---- إزالة الخلفية (بدون معالجة مسبقة) ----
 removeBtn.addEventListener('click', async () => {
     if (!currentFile) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        const imageToProcess = await safePreprocessImage(currentFile);
-        resultBlob = await removeBackground(imageToProcess, { model: 'isnet_quint8' }).catch(() =>
-            removeBackground(imageToProcess, { model: 'medium' })
+        // نمرر الملف مباشرة – المكتبة تدعم JPEG, PNG, WebP
+        resultBlob = await removeBackground(currentFile, { model: 'isnet_quint8' }).catch(() =>
+            removeBackground(currentFile, { model: 'medium' })
         );
 
         const img = new Image();
@@ -367,7 +332,7 @@ removeBtn.addEventListener('click', async () => {
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
-        alert('Error: ' + err.message);
+        alert('Cannot process this image. Please ensure it is a valid JPG, PNG, or WebP file.');
         progressText.textContent = 'Error';
     } finally {
         removeBtn.disabled = false;
