@@ -12,14 +12,14 @@
         .hero h1 { font-size:52px; }
         .hero span { color:#8b5cf6; }
         .container { max-width:1000px; margin:auto; padding:20px; }
-        .upload-area { border:2px dashed #333; padding:60px; border-radius:20px; background:#12121c; cursor:pointer; margin-bottom:20px; }
+        .upload-area { border:2px dashed #333; padding:60px; border-radius:20px; background:#12121c; cursor:pointer; margin-bottom:20px; text-align:center; }
         button { background:#8b5cf6; color:white; border:none; padding:14px 24px; border-radius:12px; margin:5px; cursor:pointer; }
         button:disabled { opacity:0.6; }
         .preview-row { display:flex; justify-content:center; gap:20px; margin:30px 0; }
         .preview-row img { max-width:300px; border-radius:12px; }
         #progress-bar { width:100%; height:10px; background:#222; border-radius:10px; margin:10px 0; display:none; }
         #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:10px; }
-        footer { text-align:center; padding:30px; color:#888; border-top:1px solid #222; }
+        footer { text-align:center; padding:30px; color:#888; border-top:1px solid #222; margin-top:40px; }
         footer a { color:#8b5cf6; }
     </style>
 </head>
@@ -34,161 +34,104 @@
         <p id="dropText">📁 Drop image here or click</p>
         <input type="file" id="fileInput" hidden accept="image/*">
     </div>
-    <div class="btn-group">
+    <div style="text-align:center;">
         <button id="preloadBtn">⚡ Preload AI Model</button>
         <button id="removeBtn" disabled>🔮 Remove Background</button>
     </div>
     <div id="progress-bar"><div id="progress-fill"></div></div>
     <div class="preview-row" id="preview" style="display:none;">
-        <div><h4>Original</h4><img id="originalImg"></div>
-        <div><h4>Result</h4><img id="resultImg"></div>
+        <div><h4>Original</h4><img id="originalImg" alt="Original"></div>
+        <div><h4>Result</h4><img id="resultImg" alt="Result"></div>
     </div>
-    <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
+    <div style="text-align:center;">
+        <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
+    </div>
 </div>
 <footer>
-    <a href="/privacy">Privacy</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
+    <a href="/privacy">Privacy Policy</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
+    <p>© 2026 SwiftImage AI</p>
 </footer>
 
 <script type="module">
 import { AutoModel, Tensor } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
 
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
-const preloadBtn = document.getElementById('preloadBtn');
-const removeBtn = document.getElementById('removeBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const originalImg = document.getElementById('originalImg');
-const resultImg = document.getElementById('resultImg');
-const preview = document.getElementById('preview');
-const progressBar = document.getElementById('progress-bar');
-const progressFill = document.getElementById('progress-fill');
-const dropText = document.getElementById('dropText');
+const elements = {
+    dropZone: document.getElementById('dropZone'),
+    fileInput: document.getElementById('fileInput'),
+    preloadBtn: document.getElementById('preloadBtn'),
+    removeBtn: document.getElementById('removeBtn'),
+    downloadBtn: document.getElementById('downloadBtn'),
+    originalImg: document.getElementById('originalImg'),
+    resultImg: document.getElementById('resultImg'),
+    preview: document.getElementById('preview'),
+    progressBar: document.getElementById('progress-bar'),
+    progressFill: document.getElementById('progress-fill'),
+    dropText: document.getElementById('dropText')
+};
 
 let model = null;
 let currentFile = null;
+let originalImageElement = null; // لتخزين الصورة الأصلية
 
 // ---- رفع الصورة ----
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#8b5cf6'; });
-dropZone.addEventListener('dragleave', () => dropZone.style.borderColor='#333');
-dropZone.addEventListener('drop', e => {
+elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+elements.dropZone.addEventListener('dragover', e => {
     e.preventDefault();
-    dropZone.style.borderColor='#333';
-    const file = e.dataTransfer.files[0];
-    if (file?.type?.startsWith('image/')) handleFile(file);
+    elements.dropZone.style.borderColor = '#8b5cf6';
 });
-fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
+elements.dropZone.addEventListener('dragleave', () => {
+    elements.dropZone.style.borderColor = '#333';
+});
+elements.dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    elements.dropZone.style.borderColor = '#333';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
+});
+elements.fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+});
 
 function handleFile(file) {
     currentFile = file;
-    originalImg.src = URL.createObjectURL(file);
-    resultImg.src = '';
-    preview.style.display = 'flex';
-    removeBtn.disabled = false;
-    downloadBtn.style.display = 'none';
-    dropText.innerText = file.name;
+    const url = URL.createObjectURL(file);
+    elements.originalImg.src = url;
+    elements.resultImg.src = '';
+    elements.preview.style.display = 'flex';
+    elements.removeBtn.disabled = false;
+    elements.downloadBtn.style.display = 'none';
+    elements.dropText.innerText = file.name;
+
+    // تحميل الصورة الأصلية كـ HTMLImageElement لاستخدامها لاحقاً
+    const img = new Image();
+    img.onload = () => { originalImageElement = img; };
+    img.src = url;
 }
 
 // ---- تحميل النموذج ----
-preloadBtn.addEventListener('click', async () => {
-    if (model) { alert('✅ Model already loaded'); return; }
-    preloadBtn.disabled = true;
-    preloadBtn.textContent = 'Loading...';
+elements.preloadBtn.addEventListener('click', async () => {
+    if (model) {
+        alert('✅ Model already loaded!');
+        return;
+    }
+    elements.preloadBtn.disabled = true;
+    elements.preloadBtn.textContent = 'Loading AI model...';
     try {
         model = await AutoModel.from_pretrained('Xenova/modnet', {
             config: { model_type: 'custom' },
             quantized: true
         });
-        preloadBtn.textContent = '✅ Ready';
-    } catch(err) {
-        alert('Error: ' + err.message);
-        preloadBtn.textContent = '⚡ Preload AI Model';
-    } finally { preloadBtn.disabled = false; }
-});
-
-// ---- إزالة الخلفية ----
-removeBtn.addEventListener('click', async () => {
-    if (!model) { alert('Preload model first'); return; }
-    if (!currentFile) return;
-
-    removeBtn.disabled = true;
-    progressBar.style.display = 'block';
-    progressFill.style.width = '10%';
-
-    try {
-        // تحويل الصورة إلى Image element للحصول على الأبعاد
-        const img = await loadImage(currentFile);
-        const width = img.width;
-        const height = img.height;
-
-        // تحويل الصورة إلى tensor مناسب [1,3,H,W] و type float32
-        const tensor = imageToTensor(img);
-
-        progressFill.style.width = '50%';
-
-        // تشغيل النموذج – يجب تمرير tensor باسم 'input'
-        const { output } = await model({ input: tensor });
-
-        progressFill.style.width = '80%';
-
-        // output قناع [1,1,H,W] أو [1,H,W]، نستخرج alpha mask
-        const maskData = output.data; // Float32Array
-        const maskLength = maskData.length;
-        const expectedLen = width * height;
-        // قد يكون القناع (1,1,H,W) مضغوطًا، نأخذ القيم
-        let mask;
-        if (maskLength === expectedLen) {
-            mask = maskData;
-        } else if (maskLength === expectedLen * 4) {
-            // ربما كان (1,4,H,W) نأخذ القناة الأولى
-            mask = new Float32Array(expectedLen);
-            for (let i = 0; i < expectedLen; i++) mask[i] = maskData[i * 4];
-        } else {
-            // افتراض أن القناع هو (1,1,H,W) لكن length قد يكون H*W (صحيح)
-            mask = maskData;
-        }
-
-        // رسم الصورة الأصلية على canvas
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        // تطبيق الشفافية
-        const imageData = ctx.getImageData(0, 0, width, height);
-        for (let i = 0; i < expectedLen; i++) {
-            // MODNet يخرج 1 للخلفية و0 للأمامية (أو العكس حسب الإصدار)
-            // القناع الذي نحصل عليه غالباً 1 = foreground, 0 = background
-            // إذا ظهرت الخلفية بيضاء والعكس، نعكس القيمة
-            const alpha = Math.round(mask[i] * 255);
-            // للتأكد: جرب alpha = 255 - alpha لو كان المقلوب
-            imageData.data[i * 4 + 3] = alpha;
-        }
-        ctx.putImageData(imageData, 0, 0);
-
-        const resultUrl = canvas.toDataURL('image/png');
-        resultImg.src = resultUrl;
-        downloadBtn.style.display = 'inline-block';
-        downloadBtn.onclick = () => {
-            const a = document.createElement('a');
-            a.href = resultUrl;
-            a.download = 'transparent.png';
-            a.click();
-        };
-
-        progressFill.style.width = '100%';
-    } catch(err) {
-        alert('Error: ' + err.message);
-        console.error(err);
+        elements.preloadBtn.textContent = '✅ Model Ready';
+    } catch (err) {
+        alert('Error loading model: ' + err.message);
+        elements.preloadBtn.textContent = '⚡ Preload AI Model';
     } finally {
-        removeBtn.disabled = false;
-        setTimeout(() => { progressBar.style.display = 'none'; progressFill.style.width = '0%'; }, 1000);
+        elements.preloadBtn.disabled = false;
     }
 });
 
 // ---- دوال مساعدة ----
-function loadImage(file) {
+function loadImageFromFile(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
@@ -197,25 +140,165 @@ function loadImage(file) {
     });
 }
 
-function imageToTensor(img) {
+// تغيير حجم الصورة إلى مضاعفات 32
+function resizeToMultiplesOf32(img) {
+    const MAX_SIZE = 1024; // حد أقصى لتجنب استهلاك الذاكرة
+    let width = img.width;
+    let height = img.height;
+
+    // تصغير إذا كانت كبيرة جداً
+    if (width > MAX_SIZE || height > MAX_SIZE) {
+        const ratio = Math.min(MAX_SIZE / width, MAX_SIZE / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+    }
+
+    // التقريب لأقرب مضاعف لـ 32
+    const newWidth = Math.floor(width / 32) * 32 || 32;
+    const newHeight = Math.floor(height / 32) * 32 || 32;
+
     const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
+    canvas.width = newWidth;
+    canvas.height = newHeight;
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, 0, 0);
-    const imageData = ctx.getImageData(0, 0, img.width, img.height);
-    const pixels = imageData.data; // Uint8ClampedArray RGBA
-    const size = img.width * img.height;
+    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+    return canvas;
+}
+
+// تحويل canvas إلى Tensor بالشكل [1, 3, H, W]
+function canvasToTensor(canvas) {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    const width = canvas.width;
+    const height = canvas.height;
+    const size = width * height;
     const floatData = new Float32Array(3 * size);
 
-    // تحويل إلى RGB وتقسيم على 255
     for (let i = 0; i < size; i++) {
-        floatData[i] = pixels[i * 4] / 255.0;
-        floatData[size + i] = pixels[i * 4 + 1] / 255.0;
-        floatData[2 * size + i] = pixels[i * 4 + 2] / 255.0;
+        floatData[i] = pixels[i * 4] / 255.0;         // R
+        floatData[size + i] = pixels[i * 4 + 1] / 255.0; // G
+        floatData[2 * size + i] = pixels[i * 4 + 2] / 255.0; // B
     }
-    return new Tensor('float32', floatData, [1, 3, img.height, img.width]);
+    return new Tensor('float32', floatData, [1, 3, height, width]);
 }
+
+// ---- إزالة الخلفية ----
+elements.removeBtn.addEventListener('click', async () => {
+    if (!model) {
+        alert('Please preload the AI model first!');
+        return;
+    }
+    if (!currentFile || !originalImageElement) {
+        alert('Please upload an image first.');
+        return;
+    }
+
+    elements.removeBtn.disabled = true;
+    elements.preloadBtn.disabled = true;
+    elements.progressBar.style.display = 'block';
+    elements.progressFill.style.width = '10%';
+
+    try {
+        const origImg = originalImageElement;
+        const origWidth = origImg.width;
+        const origHeight = origImg.height;
+
+        // 1. تغيير حجم الصورة إلى مضاعفات 32
+        const resizedCanvas = resizeToMultiplesOf32(origImg);
+        const inputWidth = resizedCanvas.width;
+        const inputHeight = resizedCanvas.height;
+
+        elements.progressFill.style.width = '30%';
+
+        // 2. تحويل canvas إلى tensor
+        const tensor = canvasToTensor(resizedCanvas);
+
+        elements.progressFill.style.width = '50%';
+
+        // 3. تشغيل النموذج
+        const output = await model({ input: tensor });
+
+        elements.progressFill.style.width = '80%';
+
+        // 4. استخراج القناع (نتوقع [1, 1, inputHeight, inputWidth] أو [1, inputHeight, inputWidth])
+        let maskData = output.output.data; // Float32Array
+        const maskLength = maskData.length;
+        const expectedLen = inputWidth * inputHeight;
+
+        let mask;
+        if (maskLength === expectedLen) {
+            mask = maskData;
+        } else if (maskLength === expectedLen * 4) {
+            // ربما [1,4,H,W] نأخذ القناة الأولى
+            mask = new Float32Array(expectedLen);
+            for (let i = 0; i < expectedLen; i++) mask[i] = maskData[i * 4];
+        } else {
+            // نحاول إعادة تشكيل
+            mask = maskData.slice(0, expectedLen);
+        }
+
+        // 5. تغيير حجم القناع ليطابق أبعاد الصورة الأصلية
+        const maskCanvas = document.createElement('canvas');
+        maskCanvas.width = inputWidth;
+        maskCanvas.height = inputHeight;
+        const maskCtx = maskCanvas.getContext('2d');
+        const maskImageData = maskCtx.createImageData(inputWidth, inputHeight);
+        for (let i = 0; i < expectedLen; i++) {
+            const val = Math.round(mask[i] * 255);
+            maskImageData.data[i * 4] = val;     // R
+            maskImageData.data[i * 4 + 1] = val; // G
+            maskImageData.data[i * 4 + 2] = val; // B
+            maskImageData.data[i * 4 + 3] = 255; // A
+        }
+        maskCtx.putImageData(maskImageData, 0, 0);
+
+        // تكبير/تصغير القناع إلى حجم الصورة الأصلية
+        const scaledMaskCanvas = document.createElement('canvas');
+        scaledMaskCanvas.width = origWidth;
+        scaledMaskCanvas.height = origHeight;
+        const scaledCtx = scaledMaskCanvas.getContext('2d');
+        scaledCtx.drawImage(maskCanvas, 0, 0, origWidth, origHeight);
+        const scaledMaskData = scaledCtx.getImageData(0, 0, origWidth, origHeight).data;
+
+        // 6. تطبيق الشفافية على الصورة الأصلية
+        const finalCanvas = document.createElement('canvas');
+        finalCanvas.width = origWidth;
+        finalCanvas.height = origHeight;
+        const finalCtx = finalCanvas.getContext('2d');
+        finalCtx.drawImage(origImg, 0, 0);
+        const origImageData = finalCtx.getImageData(0, 0, origWidth, origHeight);
+
+        for (let i = 0; i < origWidth * origHeight; i++) {
+            // استخدام القناة الحمراء من القناع كمستوى الشفافية
+            const alpha = scaledMaskData[i * 4];
+            origImageData.data[i * 4 + 3] = alpha;
+        }
+        finalCtx.putImageData(origImageData, 0, 0);
+
+        const resultUrl = finalCanvas.toDataURL('image/png');
+        elements.resultImg.src = resultUrl;
+        elements.downloadBtn.style.display = 'inline-block';
+        elements.downloadBtn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = resultUrl;
+            a.download = 'transparent.png';
+            a.click();
+        };
+
+        elements.progressFill.style.width = '100%';
+    } catch (err) {
+        alert('Error: ' + err.message);
+        console.error(err);
+    } finally {
+        elements.removeBtn.disabled = false;
+        elements.preloadBtn.disabled = false;
+        setTimeout(() => {
+            elements.progressBar.style.display = 'none';
+            elements.progressFill.style.width = '0%';
+        }, 1500);
+    }
+});
 </script>
 </body>
 </html>
