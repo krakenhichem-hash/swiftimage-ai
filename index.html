@@ -33,8 +33,14 @@
         .preview-row { display:flex; flex-direction:column; gap:20px; margin:20px 0; }
         .preview-row img, .preview-row canvas { max-width:100%; border-radius:12px; border:1px solid #333; }
 
-        #resultCanvas { pointer-events:none; touch-action:pan-y; }
-        #resultCanvas.brushing { pointer-events:auto; touch-action:none; }
+        #resultCanvas {
+            pointer-events: none;
+            touch-action: pan-y;
+        }
+        #resultCanvas.tool-active {
+            pointer-events: auto;
+            touch-action: none;
+        }
 
         .result-wrapper {
             display:inline-block;
@@ -54,11 +60,14 @@
         #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:8px; transition:width 0.3s; }
         #progress-text { text-align:center; font-size:16px; color:#8b5cf6; margin-top:5px; }
 
-        .brush-controls { display:none; margin:10px 0; text-align:center; }
-        .brush-controls .mode-btn { display:inline-block; width:auto; padding:10px 18px; margin:5px; border-radius:12px; background:#333; color:#fff; cursor:pointer; border:none; font-size:14px; }
-        .brush-controls .mode-btn.active { background:#8b5cf6; }
-        .brush-settings { display:none; margin-top:5px; }
-        .brush-settings input[type="range"] { width:100%; margin:5px 0; }
+        .toolbox { display:none; margin:10px 0; text-align:center; }
+        .tool-btn {
+            display:inline-block; width:auto; padding:10px 14px; margin:3px; border-radius:10px;
+            background:#333; color:#fff; cursor:pointer; border:none; font-size:14px;
+        }
+        .tool-btn.active { background:#8b5cf6; }
+        .tool-settings { display:none; margin-top:5px; }
+        .tool-settings input[type="range"] { width:100%; margin:5px 0; }
         .btn-secondary { background:#333; color:#fff; border:none; cursor:pointer; font-size:14px; padding:10px 16px; margin:4px; border-radius:10px; display:inline-block; width:auto; }
         footer { text-align:center; padding:30px; color:#888; }
         footer a { color:#8b5cf6; margin:0 10px; }
@@ -89,10 +98,9 @@
 </section>
 
 <div class="container">
-    <!-- منطقة رفع الصورة: input ظاهر مباشرة -->
     <div class="upload-area">
-        <p>📁 Select an image to remove its background</p>
-        <input type="file" id="fileInput" accept="image/*">
+        <p>📁 Select a JPG or PNG image</p>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,.jpg,.jpeg,.png">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -112,14 +120,30 @@
         </div>
     </div>
 
-    <div class="brush-controls" id="brushControls">
-        <button id="eraseModeBtn" class="mode-btn active">🧹 Erase</button>
-        <button id="restoreModeBtn" class="mode-btn">🔄 Restore</button>
-        <div class="brush-settings" id="brushSettings">
+    <!-- صندوق الأدوات (Toolbox) -->
+    <div class="toolbox" id="toolbox">
+        <button id="toolEraser" class="tool-btn active">🧹 Erase</button>
+        <button id="toolRestore" class="tool-btn">🔄 Restore</button>
+        <button id="toolLasso" class="tool-btn">✂️ Lasso</button>
+        <button id="toolRectSelect" class="tool-btn">⬜ Rect Select</button>
+        <button id="toolEllipseSelect" class="tool-btn">⚪ Ellipse Select</button>
+        <div class="tool-settings" id="brushSettings">
             <label>Brush Size: <span id="brushSizeValue">20</span>px</label>
             <input type="range" id="brushSize" min="5" max="80" value="20">
         </div>
+        <button id="applyCropBtn" class="btn-secondary" style="display:none;">✂️ Apply Crop</button>
+        <button id="deleteSelectionBtn" class="btn-secondary" style="display:none;">🗑️ Delete Selection</button>
         <button id="undoBtn" class="btn-secondary">↩ Undo</button>
+    </div>
+
+    <!-- أزرار تغيير الخلفية -->
+    <div class="toolbox" id="bgToolbox" style="display:none;">
+        <button id="bgTransparent" class="tool-btn active">Transparent</button>
+        <button id="bgWhite" class="tool-btn">White BG</button>
+        <button id="bgBlack" class="tool-btn">Black BG</button>
+        <button id="bgBlur" class="tool-btn">Blur BG</button>
+        <button id="bgCustomBtn" class="tool-btn">Custom BG</button>
+        <input type="file" id="customBgInput" accept="image/*" style="display:none;">
     </div>
 
     <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
@@ -135,7 +159,7 @@
     <p>© 2026 SwiftImage AI</p>
 </footer>
 
-<!-- ========== رفع الصورة (مستقل، بدون تحقق من النوع) ========== -->
+<!-- رفع الصورة مستقل -->
 <script>
     const fileInput = document.getElementById('fileInput');
     const originalImg = document.getElementById('originalImg');
@@ -147,31 +171,31 @@
     fileInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
-
-        // عرض الصورة مباشرة دون التحقق من type (بعض الهواتف لا ترسل type صحيح)
+        const name = file.name.toLowerCase();
+        if (!name.endsWith('.jpg') && !name.endsWith('.jpeg') && !name.endsWith('.png')) {
+            alert('Please select a JPG or PNG image. Other formats (like HEIC) are not supported.');
+            return;
+        }
         const url = URL.createObjectURL(file);
         originalImg.src = url;
         preview.style.display = 'flex';
         removeBtn.disabled = false;
         window.currentFile = file;
 
-        // إشعار
         const toast = document.createElement('div');
         toast.className = 'toast';
         toast.textContent = '✅ Image uploaded!';
         document.getElementById('toast-container').appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
 
-        // إعادة تعيين الأدوات السابقة إن وجدت
         if (window.resetAll) window.resetAll();
     });
 </script>
 
-<!-- ========== الأدوات (module) ========== -->
 <script type="module">
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
-// ---- Toast ----
+// ---------- Toast ----------
 function showToast(msg) {
     const c = document.getElementById('toast-container');
     const t = document.createElement('div');
@@ -181,261 +205,285 @@ function showToast(msg) {
     setTimeout(() => { if (t.parentNode) t.remove(); }, 3000);
 }
 
-// ---- DOM ----
+// ---------- DOM ----------
 const removeBtn = document.getElementById('removeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const resultCanvas = document.getElementById('resultCanvas');
 const progressContainer = document.getElementById('progress-container');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
-const brushControls = document.getElementById('brushControls');
-const eraseModeBtn = document.getElementById('eraseModeBtn');
-const restoreModeBtn = document.getElementById('restoreModeBtn');
 const brushSettings = document.getElementById('brushSettings');
 const brushSizeInput = document.getElementById('brushSize');
 const brushSizeValue = document.getElementById('brushSizeValue');
+const applyCropBtn = document.getElementById('applyCropBtn');
+const deleteSelectionBtn = document.getElementById('deleteSelectionBtn');
 const undoBtn = document.getElementById('undoBtn');
+const bgToolbox = document.getElementById('bgToolbox');
+const customBgInput = document.getElementById('customBgInput');
+
+// أزرار الأدوات
+const toolEraser = document.getElementById('toolEraser');
+const toolRestore = document.getElementById('toolRestore');
+const toolLasso = document.getElementById('toolLasso');
+const toolRectSelect = document.getElementById('toolRectSelect');
+const toolEllipseSelect = document.getElementById('toolEllipseSelect');
+
+// أزرار الخلفية
+const bgTransparent = document.getElementById('bgTransparent');
+const bgWhite = document.getElementById('bgWhite');
+const bgBlack = document.getElementById('bgBlack');
+const bgBlur = document.getElementById('bgBlur');
+const bgCustomBtn = document.getElementById('bgCustomBtn');
 
 let resultBlob = null;
-let originalImage = null;
+let originalImage = null; // الصورة الأصلية كـ Image
 let ctx = resultCanvas.getContext('2d');
 let undoStack = [];
+let currentBg = 'transparent';
+let customBgImage = null;
 
-let brushActive = false;
-let brushMode = 'erase';
-let brushSize = 20;
-let isDrawing = false;
+// ---------- Tool Manager ----------
+class ToolManager {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.activeTool = null;
+        this.tools = {};
+    }
 
-// ---- دوال الفرشاة والاستعادة ----
-function getCanvasCoords(e) {
-    const rect = resultCanvas.getBoundingClientRect();
-    const scaleX = resultCanvas.width / rect.width;
-    const scaleY = resultCanvas.height / rect.height;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+    register(name, tool) {
+        this.tools[name] = tool;
+    }
+
+    activate(name) {
+        if (this.activeTool === name) {
+            this.deactivate();
+            return;
+        }
+        if (this.activeTool && this.tools[this.activeTool]) {
+            this.tools[this.activeTool].deactivate();
+        }
+        if (this.tools[name]) {
+            this.tools[name].activate();
+            this.activeTool = name;
+            this.canvas.classList.add('tool-active');
+            // إخفاء أزرار التطبيق إلا إذا كانت الأداة تحتاجها
+            applyCropBtn.style.display = 'none';
+            deleteSelectionBtn.style.display = 'none';
+        }
+    }
+
+    deactivate() {
+        if (this.activeTool && this.tools[this.activeTool]) {
+            this.tools[this.activeTool].deactivate();
+        }
+        this.activeTool = null;
+        this.canvas.classList.remove('tool-active');
+        brushSettings.style.display = 'none';
+        applyCropBtn.style.display = 'none';
+        deleteSelectionBtn.style.display = 'none';
+        // إزالة active من كل الأزرار
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+    }
 }
 
-function applyBrush(x, y) {
-    if (brushMode === 'erase') {
+// ---------- Base Tool ----------
+class BaseTool {
+    constructor(manager) { this.manager = manager; }
+    activate() {}
+    deactivate() {}
+}
+
+// ---------- Eraser Tool ----------
+class EraserTool extends BaseTool {
+    constructor(manager, sizeInput, sizeLabel) {
+        super(manager);
+        this.size = 20;
+        this.isDrawing = false;
+        this.sizeInput = sizeInput;
+        this.sizeLabel = sizeLabel;
+        this._start = this.start.bind(this);
+        this._move = this.move.bind(this);
+        this._end = this.end.bind(this);
+    }
+
+    activate() {
+        toolEraser.classList.add('active');
+        brushSettings.style.display = 'block';
+        this.sizeInput.addEventListener('input', this._sizeChange);
+        this.sizeInput.value = this.size;
+        this.sizeLabel.textContent = this.size;
+        const c = this.manager.canvas;
+        c.addEventListener('mousedown', this._start);
+        c.addEventListener('mousemove', this._move);
+        c.addEventListener('mouseup', this._end);
+        c.addEventListener('mouseleave', this._end);
+        c.addEventListener('touchstart', this._start, {passive:false});
+        c.addEventListener('touchmove', this._move, {passive:false});
+        c.addEventListener('touchend', this._end);
+        c.addEventListener('touchcancel', this._end);
+    }
+
+    deactivate() {
+        const c = this.manager.canvas;
+        c.removeEventListener('mousedown', this._start);
+        c.removeEventListener('mousemove', this._move);
+        c.removeEventListener('mouseup', this._end);
+        c.removeEventListener('mouseleave', this._end);
+        c.removeEventListener('touchstart', this._start);
+        c.removeEventListener('touchmove', this._move);
+        c.removeEventListener('touchend', this._end);
+        c.removeEventListener('touchcancel', this._end);
+        this.sizeInput.removeEventListener('input', this._sizeChange);
+        this.isDrawing = false;
+    }
+
+    _sizeChange = (e) => { this.size = +e.target.value; this.sizeLabel.textContent = this.size; };
+
+    getPos(e) {
+        const rect = this.manager.canvas.getBoundingClientRect();
+        const sx = this.manager.canvas.width / rect.width;
+        const sy = this.manager.canvas.height / rect.height;
+        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+    }
+
+    start(e) { e.preventDefault(); this.isDrawing = true; const p = this.getPos(e); this.erase(p.x, p.y); saveUndoState(); }
+    move(e) { if (!this.isDrawing) return; e.preventDefault(); const p = this.getPos(e); this.erase(p.x, p.y); }
+    end() { this.isDrawing = false; }
+    erase(x, y) {
+        const ctx = this.manager.canvas.getContext('2d');
         ctx.save();
         ctx.globalCompositeOperation = 'destination-out';
         ctx.beginPath();
-        ctx.arc(x, y, brushSize/2, 0, Math.PI*2);
+        ctx.arc(x, y, this.size/2, 0, Math.PI*2);
         ctx.fill();
         ctx.restore();
-    } else if (brushMode === 'restore' && originalImage) {
-        const cw = resultCanvas.width, ch = resultCanvas.height;
-        const iw = originalImage.width, ih = originalImage.height;
-        const scale = Math.min(cw / iw, ch / ih);
-        const srcSize = brushSize / scale;
-        const srcX = (x / scale) - srcSize/2;
-        const srcY = (y / scale) - srcSize/2;
+    }
+}
+
+// ---------- Restore Tool ----------
+class RestoreTool extends BaseTool {
+    constructor(manager, sizeInput, sizeLabel, getOriginalImage) {
+        super(manager);
+        this.size = 20;
+        this.isDrawing = false;
+        this.sizeInput = sizeInput;
+        this.sizeLabel = sizeLabel;
+        this.getOriginalImage = getOriginalImage;
+        this._start = this.start.bind(this);
+        this._move = this.move.bind(this);
+        this._end = this.end.bind(this);
+    }
+
+    activate() {
+        toolRestore.classList.add('active');
+        brushSettings.style.display = 'block';
+        this.sizeInput.addEventListener('input', this._sizeChange);
+        this.sizeInput.value = this.size;
+        this.sizeLabel.textContent = this.size;
+        const c = this.manager.canvas;
+        c.addEventListener('mousedown', this._start);
+        c.addEventListener('mousemove', this._move);
+        c.addEventListener('mouseup', this._end);
+        c.addEventListener('mouseleave', this._end);
+        c.addEventListener('touchstart', this._start, {passive:false});
+        c.addEventListener('touchmove', this._move, {passive:false});
+        c.addEventListener('touchend', this._end);
+        c.addEventListener('touchcancel', this._end);
+    }
+
+    deactivate() {
+        const c = this.manager.canvas;
+        c.removeEventListener('mousedown', this._start);
+        c.removeEventListener('mousemove', this._move);
+        c.removeEventListener('mouseup', this._end);
+        c.removeEventListener('mouseleave', this._end);
+        c.removeEventListener('touchstart', this._start);
+        c.removeEventListener('touchmove', this._move);
+        c.removeEventListener('touchend', this._end);
+        c.removeEventListener('touchcancel', this._end);
+        this.sizeInput.removeEventListener('input', this._sizeChange);
+        this.isDrawing = false;
+    }
+
+    _sizeChange = (e) => { this.size = +e.target.value; this.sizeLabel.textContent = this.size; };
+
+    getPos(e) {
+        const rect = this.manager.canvas.getBoundingClientRect();
+        const sx = this.manager.canvas.width / rect.width;
+        const sy = this.manager.canvas.height / rect.height;
+        const cx = e.touches ? e.touches[0].clientX : e.clientX;
+        const cy = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+    }
+
+    start(e) { e.preventDefault(); this.isDrawing = true; const p = this.getPos(e); this.restore(p.x, p.y); saveUndoState(); }
+    move(e) { if (!this.isDrawing) return; e.preventDefault(); const p = this.getPos(e); this.restore(p.x, p.y); }
+    end() { this.isDrawing = false; }
+
+    restore(x, y) {
+        const orig = this.getOriginalImage();
+        if (!orig) return;
+        const ctx = this.manager.canvas.getContext('2d');
+        const cw = this.manager.canvas.width;
+        const ch = this.manager.canvas.height;
+        const iw = orig.width;
+        const ih = orig.height;
+        const scale = Math.min(cw/iw, ch/ih);
+        const srcSize = this.size / scale;
+        const srcX = (x/scale) - srcSize/2;
+        const srcY = (y/scale) - srcSize/2;
         ctx.save();
         ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(originalImage, srcX, srcY, srcSize, srcSize, x - brushSize/2, y - brushSize/2, brushSize, brushSize);
+        ctx.drawImage(orig, srcX, srcY, srcSize, srcSize, x - this.size/2, y - this.size/2, this.size, this.size);
         ctx.restore();
     }
 }
 
-function brushStart(e) {
-    if (!brushActive) return;
-    e.preventDefault();
-    isDrawing = true;
-    const p = getCanvasCoords(e);
-    applyBrush(p.x, p.y);
-    setTimeout(saveUndoState, 10);
-}
-function brushMove(e) {
-    if (!isDrawing || !brushActive) return;
-    e.preventDefault();
-    const p = getCanvasCoords(e);
-    applyBrush(p.x, p.y);
-}
-function brushEnd() { isDrawing = false; }
-
-function addBrushListeners() {
-    resultCanvas.addEventListener('touchstart', brushStart, {passive:false});
-    resultCanvas.addEventListener('touchmove', brushMove, {passive:false});
-    resultCanvas.addEventListener('touchend', brushEnd);
-    resultCanvas.addEventListener('touchcancel', brushEnd);
-    resultCanvas.addEventListener('mousedown', brushStart);
-    resultCanvas.addEventListener('mousemove', brushMove);
-    resultCanvas.addEventListener('mouseup', brushEnd);
-    resultCanvas.addEventListener('mouseleave', brushEnd);
-}
-function removeBrushListeners() {
-    resultCanvas.removeEventListener('touchstart', brushStart);
-    resultCanvas.removeEventListener('touchmove', brushMove);
-    resultCanvas.removeEventListener('touchend', brushEnd);
-    resultCanvas.removeEventListener('touchcancel', brushEnd);
-    resultCanvas.removeEventListener('mousedown', brushStart);
-    resultCanvas.removeEventListener('mousemove', brushMove);
-    resultCanvas.removeEventListener('mouseup', brushEnd);
-    resultCanvas.removeEventListener('mouseleave', brushEnd);
-}
-
-function enableBrush() {
-    brushActive = true;
-    resultCanvas.classList.add('brushing');
-    brushSettings.style.display = 'block';
-    addBrushListeners();
-}
-function disableBrush() {
-    brushActive = false;
-    isDrawing = false;
-    resultCanvas.classList.remove('brushing');
-    brushSettings.style.display = 'none';
-    removeBrushListeners();
-}
-
-// ---- أزرار الأوضاع ----
-eraseModeBtn.addEventListener('click', () => {
-    if (brushActive && brushMode === 'erase') {
-        disableBrush();
-        eraseModeBtn.classList.remove('active');
-    } else {
-        brushMode = 'erase';
-        eraseModeBtn.classList.add('active');
-        restoreModeBtn.classList.remove('active');
-        if (!brushActive) enableBrush();
+// ---------- Lasso Tool ----------
+class LassoTool extends BaseTool {
+    constructor(manager) {
+        super(manager);
+        this.points = [];
+        this.isActive = false;
+        this.isDrawing = false;
+        this._start = this.start.bind(this);
+        this._move = this.move.bind(this);
+        this._end = this.end.bind(this);
     }
-});
-restoreModeBtn.addEventListener('click', () => {
-    if (brushActive && brushMode === 'restore') {
-        disableBrush();
-        restoreModeBtn.classList.remove('active');
-    } else {
-        brushMode = 'restore';
-        restoreModeBtn.classList.add('active');
-        eraseModeBtn.classList.remove('active');
-        if (!brushActive) enableBrush();
+
+    activate() {
+        toolLasso.classList.add('active');
+        const c = this.manager.canvas;
+        c.addEventListener('mousedown', this._start);
+        c.addEventListener('mousemove', this._move);
+        c.addEventListener('mouseup', this._end);
+        c.addEventListener('touchstart', this._start, {passive:false});
+        c.addEventListener('touchmove', this._move, {passive:false});
+        c.addEventListener('touchend', this._end);
+        c.addEventListener('touchcancel', this._end);
+        deleteSelectionBtn.style.display = 'none';
     }
-});
 
-brushSizeInput.addEventListener('input', e => {
-    brushSize = +e.target.value;
-    brushSizeValue.textContent = brushSize;
-});
-
-// ---- تقدم وهمي ----
-function startFakeProgress() {
-    progressContainer.style.display='block'; progressFill.style.width='0%'; progressText.textContent='Processing… 0%';
-    let percent=0;
-    const interval=setInterval(()=>{
-        if(percent<90){ percent+=1; progressFill.style.width=percent+'%'; progressText.textContent='Processing… '+percent+'%'; }
-        else { progressFill.style.width='90%'; progressText.textContent='Processing… 90%'; }
-    },300);
-    return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
-}
-
-// ---- تحويل احتياطي إلى PNG ----
-async function convertToPNG(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const MAX_DIM = 1024;
-            let w = img.width, h = img.height;
-            if (w > MAX_DIM || h > MAX_DIM) {
-                const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
-                w = Math.round(w * ratio); h = Math.round(h * ratio);
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w; canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            canvas.toBlob(blob => {
-                if (blob) { URL.revokeObjectURL(img.src); resolve(blob); }
-                else reject(new Error('Canvas toBlob failed'));
-            }, 'image/png', 1.0);
-        };
-        img.onerror = () => { URL.revokeObjectURL(img.src); reject(new Error('Cannot decode this image.')); };
-        img.src = URL.createObjectURL(file);
-    });
-}
-
-// ---- إزالة الخلفية ----
-removeBtn.addEventListener('click', async () => {
-    const file = window.currentFile;
-    if (!file) return;
-    removeBtn.disabled = true;
-    const fake = startFakeProgress();
-
-    try {
-        // تحميل الصورة الأصلية للاستعادة
-        const orig = new Image();
-        orig.src = URL.createObjectURL(file);
-        await new Promise((res, rej) => { orig.onload = res; orig.onerror = rej; });
-        originalImage = orig;
-
-        // محاولة أولى: مباشر
-        try {
-            resultBlob = await removeBackground(file, { model: 'medium' });
-        } catch (directError) {
-            console.warn('Direct failed, trying PNG conversion...');
-            const pngBlob = await convertToPNG(file);
-            resultBlob = await removeBackground(pngBlob, { model: 'medium' });
+    deactivate() {
+        const c = this.manager.canvas;
+        c.removeEventListener('mousedown', this._start);
+        c.removeEventListener('mousemove', this._move);
+        c.removeEventListener('mouseup', this._end);
+        c.removeEventListener('touchstart', this._start);
+        c.removeEventListener('touchmove', this._move);
+        c.removeEventListener('touchend', this._end);
+        c.removeEventListener('touchcancel', this._end);
+        if (this.points.length > 0) {
+            this.drawFinal();
         }
-
-        const img = new Image();
-        img.onload = () => {
-            resultCanvas.width = img.width;
-            resultCanvas.height = img.height;
-            ctx = resultCanvas.getContext('2d');
-            ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-            ctx.drawImage(img, 0, 0);
-            brushControls.style.display = 'block';
-            downloadBtn.style.display = 'block';
-            brushMode = 'erase';
-            eraseModeBtn.classList.add('active');
-            restoreModeBtn.classList.remove('active');
-            disableBrush();
-            saveUndoState();
-            fake.complete();
-            showToast('🎉 Background removed! Use Erase/Restore brush.');
-        };
-        img.src = URL.createObjectURL(resultBlob);
-    } catch (err) {
-        console.error('Remove background error:', err);
-        alert('Cannot process this image. It may be corrupted or in an unsupported format.');
-        progressText.textContent = 'Error';
-    } finally {
-        removeBtn.disabled = false;
-        setTimeout(() => { progressContainer.style.display = 'none'; }, 1500);
+        this.points = [];
+        this.isActive = false;
+        this.isDrawing = false;
     }
-});
 
-// ---- Undo ----
-function saveUndoState() { if(undoStack.length>20) undoStack.shift(); undoStack.push(resultCanvas.toDataURL()); }
-undoBtn.addEventListener('click', ()=>{
-    if(undoStack.length>1){
-        undoStack.pop();
-        const prev=undoStack[undoStack.length-1];
-        const img=new Image();
-        img.onload=()=>{ ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height); ctx.drawImage(img,0,0); resultCanvas.toBlob(b=>{if(b)resultBlob=b;},'image/png'); };
-        img.src=prev;
-    }
-});
-downloadBtn.addEventListener('click', ()=>{
-    const a=document.createElement('a');
-    a.href=resultCanvas.toDataURL('image/png');
-    a.download='transparent.png';
-    a.click();
-});
-
-window.resetAll = function() {
-    resultBlob=null;
-    originalImage=null;
-    disableBrush();
-    brushControls.style.display='none';
-    downloadBtn.style.display='none';
-    undoStack=[];
-    ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height);
-    progressContainer.style.display='none';
-    eraseModeBtn.classList.add('active');
-    restoreModeBtn.classList.remove('active');
-};
-</script>
-
-</body>
-</html>
+    getPos(e) {
+        const rect = this.manager.canvas.getBoundingClientRect();
+        const sx = this.manager.canvas.width / rect.width;
+      
