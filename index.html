@@ -15,12 +15,14 @@
         .container { max-width:600px; margin:auto; }
 
         .upload-area {
-            border:2px dashed #333; padding:40px 20px; border-radius:20px;
+            border:2px dashed #333; padding:30px 20px; border-radius:20px;
             background:#12121c; text-align:center; margin:20px 0;
-            cursor:pointer; transition:0.3s;
         }
-        .upload-area:hover { border-color:#8b5cf6; }
-        .upload-area input[type="file"] { display:none; }
+        .upload-area p { margin-bottom:15px; font-size:16px; }
+        .upload-area input[type="file"] {
+            display:inline-block; background:#222; color:#fff;
+            padding:12px 20px; border-radius:10px; border:1px solid #444; cursor:pointer;
+        }
 
         button {
             display:block; width:100%; margin:10px 0; background:#8b5cf6; color:white;
@@ -87,9 +89,10 @@
 </section>
 
 <div class="container">
-    <div class="upload-area" id="uploadArea">
-        <p>📁 Tap here to select an image</p>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png">
+    <!-- منطقة رفع الصورة: input ظاهر مباشرة -->
+    <div class="upload-area">
+        <p>📁 Select an image to remove its background</p>
+        <input type="file" id="fileInput" accept="image/*">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -132,6 +135,39 @@
     <p>© 2026 SwiftImage AI</p>
 </footer>
 
+<!-- ========== رفع الصورة (مستقل، بدون تحقق من النوع) ========== -->
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const originalImg = document.getElementById('originalImg');
+    const preview = document.getElementById('preview');
+    const removeBtn = document.getElementById('removeBtn');
+
+    window.currentFile = null;
+
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // عرض الصورة مباشرة دون التحقق من type (بعض الهواتف لا ترسل type صحيح)
+        const url = URL.createObjectURL(file);
+        originalImg.src = url;
+        preview.style.display = 'flex';
+        removeBtn.disabled = false;
+        window.currentFile = file;
+
+        // إشعار
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = '✅ Image uploaded!';
+        document.getElementById('toast-container').appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+
+        // إعادة تعيين الأدوات السابقة إن وجدت
+        if (window.resetAll) window.resetAll();
+    });
+</script>
+
+<!-- ========== الأدوات (module) ========== -->
 <script type="module">
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
@@ -146,16 +182,12 @@ function showToast(msg) {
 }
 
 // ---- DOM ----
-const fileInput = document.getElementById('fileInput');
 const removeBtn = document.getElementById('removeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
-const originalImg = document.getElementById('originalImg');
 const resultCanvas = document.getElementById('resultCanvas');
-const preview = document.getElementById('preview');
 const progressContainer = document.getElementById('progress-container');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
-const uploadArea = document.getElementById('uploadArea');
 const brushControls = document.getElementById('brushControls');
 const eraseModeBtn = document.getElementById('eraseModeBtn');
 const restoreModeBtn = document.getElementById('restoreModeBtn');
@@ -164,42 +196,17 @@ const brushSizeInput = document.getElementById('brushSize');
 const brushSizeValue = document.getElementById('brushSizeValue');
 const undoBtn = document.getElementById('undoBtn');
 
-let currentFile = null;
-let originalImage = null; // الصورة الأصلية كـ Image element
 let resultBlob = null;
+let originalImage = null;
 let ctx = resultCanvas.getContext('2d');
 let undoStack = [];
 
 let brushActive = false;
-let brushMode = 'erase'; // 'erase' or 'restore'
+let brushMode = 'erase';
 let brushSize = 20;
+let isDrawing = false;
 
-// ---- فتح نافذة الرفع ----
-uploadArea.addEventListener('click', () => fileInput.click());
-
-// ---- رفع الصورة ----
-fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-        alert('Please select a JPG or PNG image.');
-        return;
-    }
-    resetAll();
-    currentFile = file;
-    // تحميل الصورة الأصلية في عنصر Image لاستخدامها لاحقاً في الاستعادة
-    const img = new Image();
-    img.onload = () => { originalImage = img; };
-    img.src = URL.createObjectURL(file);
-
-    originalImg.src = URL.createObjectURL(file);
-    preview.style.display = 'flex';
-    removeBtn.disabled = false;
-    uploadArea.querySelector('p').innerText = file.name;
-    showToast('✅ Image uploaded successfully!');
-});
-
-// ---- الفرشاة (محو واستعادة) ----
+// ---- دوال الفرشاة والاستعادة ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -218,12 +225,8 @@ function applyBrush(x, y) {
         ctx.fill();
         ctx.restore();
     } else if (brushMode === 'restore' && originalImage) {
-        // رسم جزء من الصورة الأصلية لاستعادة المنطقة
-        const cw = resultCanvas.width;
-        const ch = resultCanvas.height;
-        const iw = originalImage.width;
-        const ih = originalImage.height;
-        // حساب المقياس (نفترض نفس النسبة)
+        const cw = resultCanvas.width, ch = resultCanvas.height;
+        const iw = originalImage.width, ih = originalImage.height;
         const scale = Math.min(cw / iw, ch / ih);
         const srcSize = brushSize / scale;
         const srcX = (x / scale) - srcSize/2;
@@ -286,7 +289,7 @@ function disableBrush() {
     removeBrushListeners();
 }
 
-// ---- أزرار الوضع ----
+// ---- أزرار الأوضاع ----
 eraseModeBtn.addEventListener('click', () => {
     if (brushActive && brushMode === 'erase') {
         disableBrush();
@@ -326,7 +329,7 @@ function startFakeProgress() {
     return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
 }
 
-// ---- دالة تحويل إلى PNG (للخطة الاحتياطية) ----
+// ---- تحويل احتياطي إلى PNG ----
 async function convertToPNG(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -353,16 +356,24 @@ async function convertToPNG(file) {
 
 // ---- إزالة الخلفية ----
 removeBtn.addEventListener('click', async () => {
-    if (!currentFile) return;
+    const file = window.currentFile;
+    if (!file) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
+        // تحميل الصورة الأصلية للاستعادة
+        const orig = new Image();
+        orig.src = URL.createObjectURL(file);
+        await new Promise((res, rej) => { orig.onload = res; orig.onerror = rej; });
+        originalImage = orig;
+
+        // محاولة أولى: مباشر
         try {
-            resultBlob = await removeBackground(currentFile, { model: 'medium' });
+            resultBlob = await removeBackground(file, { model: 'medium' });
         } catch (directError) {
-            console.warn('Direct processing failed, trying with PNG conversion...');
-            const pngBlob = await convertToPNG(currentFile);
+            console.warn('Direct failed, trying PNG conversion...');
+            const pngBlob = await convertToPNG(file);
             resultBlob = await removeBackground(pngBlob, { model: 'medium' });
         }
 
@@ -375,14 +386,13 @@ removeBtn.addEventListener('click', async () => {
             ctx.drawImage(img, 0, 0);
             brushControls.style.display = 'block';
             downloadBtn.style.display = 'block';
-            // تفعيل وضع المحو افتراضياً
             brushMode = 'erase';
             eraseModeBtn.classList.add('active');
             restoreModeBtn.classList.remove('active');
-            disableBrush(); // الفرشاة غير نشطة حتى يختار المستخدم
+            disableBrush();
             saveUndoState();
             fake.complete();
-            showToast('🎉 Background removed! Use Erase or Restore brush.');
+            showToast('🎉 Background removed! Use Erase/Restore brush.');
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
@@ -413,7 +423,7 @@ downloadBtn.addEventListener('click', ()=>{
     a.click();
 });
 
-function resetAll() {
+window.resetAll = function() {
     resultBlob=null;
     originalImage=null;
     disableBrush();
@@ -422,7 +432,10 @@ function resetAll() {
     undoStack=[];
     ctx.clearRect(0,0,resultCanvas.width,resultCanvas.height);
     progressContainer.style.display='none';
-}
+    eraseModeBtn.classList.add('active');
+    restoreModeBtn.classList.remove('active');
+};
 </script>
+
 </body>
-                                                  </html>
+</html>
