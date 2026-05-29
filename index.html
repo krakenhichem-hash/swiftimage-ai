@@ -16,15 +16,23 @@
 
         .upload-area {
             border:2px dashed #333;
-            padding:40px 20px;
+            padding:30px 20px;
             border-radius:20px;
             background:#12121c;
             text-align:center;
             margin:20px 0;
-            cursor:pointer;
-            transition:0.3s;
         }
-        .upload-area:hover { border-color:#8b5cf6; }
+        .upload-area p { margin-bottom: 15px; font-size: 16px; }
+        .upload-area input[type="file"] {
+            /* إظهار input بشكل طبيعي ومقبول */
+            display: inline-block;
+            background: #222;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            cursor: pointer;
+        }
 
         button {
             display:block; width:100%; margin:10px 0; background:#8b5cf6; color:white;
@@ -121,9 +129,9 @@
 </section>
 
 <div class="container">
-    <div class="upload-area" id="uploadArea">
+    <div class="upload-area">
         <p>📁 Select an image to remove its background</p>
-        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+        <input type="file" id="fileInput" accept="image/*">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -198,7 +206,6 @@ const preview = document.getElementById('preview');
 const progressContainer = document.getElementById('progress-container');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
-const uploadArea = document.getElementById('uploadArea');
 const brushControls = document.getElementById('brushControls');
 const brushToggleBtn = document.getElementById('brushToggleBtn');
 const brushSettings = document.getElementById('brushSettings');
@@ -224,10 +231,8 @@ let brushActive = false;
 let isDrawing = false;
 let brushSize = 20;
 
-uploadArea.addEventListener('click', () => fileInput.click());
-
-// ---- رفع الصورة ----
-fileInput.addEventListener('change', async (e) => {
+// ---- رفع الصورة (input ظاهر، نستخدم change مباشرة) ----
+fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
     resetEverything();
@@ -235,7 +240,6 @@ fileInput.addEventListener('change', async (e) => {
     originalImg.src = URL.createObjectURL(file);
     preview.style.display = 'flex';
     removeBtn.disabled = false;
-    uploadArea.querySelector('p').innerText = file.name;
     showToast('✅ Image uploaded successfully!');
 });
 
@@ -329,7 +333,7 @@ customBgInput.addEventListener('change', (e) => {
     img.src = URL.createObjectURL(file);
 });
 
-// ---- الفرشاة (كما هي) ----
+// ---- الفرشاة ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -441,9 +445,8 @@ function startFakeProgress() {
     };
 }
 
-// ---- دالة تحويل الصورة مع خطة احتياطية ----
+// ---- دالة تحويل الصورة مع احتياط ----
 async function safePreprocessImage(file) {
-    // محاولة المعالجة المسبقة
     try {
         return await new Promise((resolve, reject) => {
             const img = new Image();
@@ -461,7 +464,7 @@ async function safePreprocessImage(file) {
                 ctx.drawImage(img, 0, 0, width, height);
                 canvas.toBlob(blob => {
                     if (blob) {
-                        URL.revokeObjectURL(img.src); // تنظيف
+                        URL.revokeObjectURL(img.src);
                         resolve(blob);
                     } else {
                         reject(new Error('Canvas toBlob failed'));
@@ -475,10 +478,9 @@ async function safePreprocessImage(file) {
             img.src = URL.createObjectURL(file);
         });
     } catch (e) {
-        // إذا فشلت المعالجة، نستخدم الملف الأصلي
         console.warn('Preprocessing failed, using original file:', e);
         showToast('⚡ Using original image format...');
-        return file; // العودة إلى الملف الأصلي
+        return file;
     }
 }
 
@@ -489,10 +491,7 @@ removeBtn.addEventListener('click', async () => {
     const fake = startFakeProgress();
 
     try {
-        // الحصول على الصورة الآمنة (إما PNG محولة أو الملف الأصلي)
         const imageToProcess = await safePreprocessImage(currentFile);
-        
-        // استخدام النموذج الأفضل
         resultBlob = await removeBackground(imageToProcess, { model: 'isnet_quint8' }).catch(() =>
             removeBackground(imageToProcess, { model: 'medium' })
         );
@@ -555,4 +554,8 @@ downloadBtn.addEventListener('click', () => {
 
 function resetEverything() {
     resultBlob = null;
-    
+    currentBgType = 'transparent';
+    customBgImage = null;
+    disableBrush();
+    brushControls.style.display = 'none';
+    bgControls.style.display = 'none'
