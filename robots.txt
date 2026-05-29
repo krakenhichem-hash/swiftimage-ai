@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
 
+Disallow: /sw.js
+
 Sitemap: https://swiftimage-ai.vercel.app/sitemap.xml
