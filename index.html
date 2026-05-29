@@ -50,7 +50,6 @@
         }
         .result-wrapper canvas { display: block; border-radius: 10px; }
         
-        /* شريط التقدم السلس */
         #progress-container { display:none; margin:10px 0; }
         #progress-bar {
             width:100%; height:8px; background:#222; border-radius:8px; overflow:hidden;
@@ -259,11 +258,10 @@ function startFakeProgress() {
     let percent = 0;
     const interval = setInterval(() => {
         if (percent < 90) {
-            percent += 1; // يزيد 1% كل 200 مللي
+            percent += 1;
             progressFill.style.width = percent + '%';
             progressText.textContent = 'Processing… ' + percent + '%';
         } else {
-            // يبقى عند 90% حتى يكتمل
             progressFill.style.width = '90%';
             progressText.textContent = 'Processing… 90%';
         }
@@ -296,7 +294,10 @@ removeBtn.addEventListener('click', async () => {
             ctx.drawImage(img, 0, 0);
             brushControls.style.display = 'block';
             downloadBtn.style.display = 'block';
-            saveUndoState();
+            // تأجيل حفظ الحالة لتجنب تجميد الواجهة
+            setTimeout(() => {
+                saveUndoState();
+            }, 50);
             fake.complete();
             showToast('🎉 Background removed successfully!');
         };
@@ -323,10 +324,12 @@ brushSizeInput.addEventListener('input', e => {
     brushSize = +e.target.value;
     brushSizeValue.textContent = brushSize;
 });
+
 function saveUndoState() {
-    undoStack.push(resultCanvas.toDataURL());
     if (undoStack.length > 20) undoStack.shift();
+    undoStack.push(resultCanvas.toDataURL());
 }
+
 undoBtn.addEventListener('click', () => {
     if (undoStack.length > 1) {
         undoStack.pop();
@@ -354,7 +357,8 @@ function startDraw(e) {
     e.preventDefault();
     isDrawing = true;
     const p = getPos(e); eraseAt(p.x, p.y);
-    saveUndoState();
+    // حفظ الحالة أيضاً مؤجل قليلاً لتحسين الأداء
+    setTimeout(saveUndoState, 10);
 }
 function draw(e) {
     if (!isDrawing || !brushActive) return;
@@ -364,7 +368,7 @@ function draw(e) {
 function endDraw() {
     if (!brushActive) return;
     isDrawing = false;
-    saveUndoState();
+    // لا حاجة لحفظ إضافي هنا، تم الحفظ في startDraw
 }
 resultCanvas.addEventListener('mousedown', startDraw);
 resultCanvas.addEventListener('mousemove', draw);
@@ -395,4 +399,4 @@ function resetAll() {
 }
 </script>
 </body>
-    </html>
+</html>
