@@ -171,7 +171,7 @@ let brushSize = 20;
 // ---- فتح نافذة الرفع ----
 uploadArea.addEventListener('click', () => fileInput.click());
 
-// ---- رفع الصورة (JPEG, PNG فقط) ----
+// ---- رفع الصورة (JPEG / PNG فقط) ----
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -188,7 +188,7 @@ fileInput.addEventListener('change', (e) => {
     showToast('✅ Image uploaded successfully!');
 });
 
-// ---- الفرشاة (دون تغيير) ----
+// ---- الفرشاة (نفسها) ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -240,16 +240,50 @@ function startFakeProgress() {
     return { stop:()=>clearInterval(interval), complete:()=>{ clearInterval(interval); progressFill.style.width='100%'; progressText.textContent='Done!'; } };
 }
 
-// ---- إزالة الخلفية (بدون معالجة مسبقة) ----
+// ---- معالجة مسبقة آمنة (تحويل إلى PNG نظيفة) ----
+async function safeConvertToPNG(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const MAX_DIM = 1024;
+            let w = img.width, h = img.height;
+            if (w > MAX_DIM || h > MAX_DIM) {
+                const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+                w = Math.round(w * ratio); h = Math.round(h * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            canvas.toBlob(blob => {
+                if (blob) {
+                    URL.revokeObjectURL(img.src);
+                    resolve(blob);
+                } else {
+                    reject(new Error('Canvas toBlob failed'));
+                }
+            }, 'image/png', 1.0);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(img.src);
+            reject(new Error('Cannot decode this image. It may be corrupted or in an unsupported format.'));
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// ---- إزالة الخلفية (مع معالجة مسبقة) ----
 removeBtn.addEventListener('click', async () => {
     if (!currentFile) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        // تمرير الملف مباشرة - يدعم JPEG / PNG بشكل كامل
-        resultBlob = await removeBackground(currentFile, { model: 'isnet_quint8' }).catch(() =>
-            removeBackground(currentFile, { model: 'medium' })
+        // 1. تحويل الصورة إلى PNG آمنة
+        const safeImage = await safeConvertToPNG(currentFile);
+        // 2. إزالة الخلفية
+        resultBlob = await removeBackground(safeImage, { model: 'isnet_quint8' }).catch(() =>
+            removeBackground(safeImage, { model: 'medium' })
         );
 
         const img = new Image();
@@ -268,7 +302,7 @@ removeBtn.addEventListener('click', async () => {
         };
         img.src = URL.createObjectURL(resultBlob);
     } catch (err) {
-        alert('Cannot process this image. Please ensure it is a valid JPG or PNG file.');
+        alert('Error: ' + err.message);
         progressText.textContent = 'Error';
     } finally {
         removeBtn.disabled = false;
@@ -300,4 +334,4 @@ function resetAll() {
 }
 </script>
 </body>
-</html>
+    </html>
