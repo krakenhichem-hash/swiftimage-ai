@@ -204,15 +204,15 @@ let brushActive = false;
 let isDrawing = false;
 let brushSize = 20;
 
-// ---- فتح نافذة رفع الملفات عند الضغط على منطقة الرفع ----
+// فتح نافذة رفع الملفات
 uploadArea.addEventListener('click', () => fileInput.click());
 
 // ---- رفع الصورة ----
 fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
-    // إعادة تعيين
+
+    // إعادة تعيين الحالة السابقة
     if (resultBlob) {
         resultBlob = null;
         disableBrush();
@@ -221,7 +221,7 @@ fileInput.addEventListener('change', async (e) => {
         undoStack = [];
         ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
     }
-    
+
     currentFile = file;
     originalImg.src = URL.createObjectURL(file);
     preview.style.display = 'flex';
@@ -230,7 +230,7 @@ fileInput.addEventListener('change', async (e) => {
     showToast('✅ Image uploaded successfully!');
 });
 
-// ---- دوال الفرشاة ----
+// ---- دوال الفرشاة (كما هي) ----
 function getCanvasCoords(e) {
     const rect = resultCanvas.getBoundingClientRect();
     const scaleX = resultCanvas.width / rect.width;
@@ -342,17 +342,50 @@ function startFakeProgress() {
     };
 }
 
-// ---- إزالة الخلفية ----
+// ---- دالة تحويل الصورة إلى PNG آمنة (تُحل مشكلة "image cannot be decoded") ----
+async function preprocessImage(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            // تصغير الأبعاد لتجنب استهلاك الذاكرة
+            const MAX_DIM = 1024;
+            let width = img.width;
+            let height = img.height;
+            if (width > MAX_DIM || height > MAX_DIM) {
+                const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+                width = Math.round(width * ratio);
+                height = Math.round(height * ratio);
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob(blob => {
+                if (blob) resolve(blob);
+                else reject(new Error('Canvas toBlob failed'));
+            }, 'image/png', 1.0);
+        };
+        img.onerror = () => reject(new Error('Failed to load image for preprocessing'));
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// ---- إزالة الخلفية (مع preprocessing) ----
 removeBtn.addEventListener('click', async () => {
     if (!currentFile) return;
     removeBtn.disabled = true;
     const fake = startFakeProgress();
 
     try {
-        // محاولة isnet_quint8 أولاً لقوته، ثم medium كاحتياط
-        resultBlob = await removeBackground(currentFile, { model: 'isnet_quint8' }).catch(() =>
-            removeBackground(currentFile, { model: 'medium' })
+        // تحويل الصورة إلى PNG آمن أولاً
+        let safeImage = await preprocessImage(currentFile);
+        
+        // محاولة النموذج الأقوى isnet_quint8، ثم medium
+        resultBlob = await removeBackground(safeImage, { model: 'isnet_quint8' }).catch(() =>
+            removeBackground(safeImage, { model: 'medium' })
         );
+
         const img = new Image();
         img.onload = () => {
             resultCanvas.width = img.width;
