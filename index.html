@@ -33,8 +33,14 @@
         .preview-row { display:flex; flex-direction:column; gap:20px; margin:20px 0; }
         .preview-row img, .preview-row canvas { max-width:100%; border-radius:12px; border:1px solid #333; }
 
-        #resultCanvas { pointer-events:none; touch-action:pan-y; }
-        #resultCanvas.brushing { pointer-events:auto; touch-action:none; }
+        #resultCanvas {
+            pointer-events: none;
+            touch-action: pan-y;
+        }
+        #resultCanvas.brushing, #resultCanvas.lassoing {
+            pointer-events: auto;
+            touch-action: none;
+        }
 
         .result-wrapper {
             display:inline-block;
@@ -54,8 +60,14 @@
         #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:8px; transition:width 0.3s; }
         #progress-text { text-align:center; font-size:16px; color:#8b5cf6; margin-top:5px; }
 
-        .brush-controls { display:none; margin:10px 0; text-align:center; }
-        .brush-controls input[type="range"] { width:100%; margin:5px 0; }
+        .toolbox { display:none; margin:10px 0; text-align:center; }
+        .tool-btn {
+            display:inline-block; width:auto; padding:10px 18px; margin:5px; border-radius:12px;
+            background:#333; color:#fff; cursor:pointer; border:none; font-size:14px;
+        }
+        .tool-btn.active { background:#8b5cf6; }
+        .tool-settings { display:none; margin-top:5px; }
+        .tool-settings input[type="range"] { width:100%; margin:5px 0; }
         .btn-secondary { background:#333; color:#fff; border:none; cursor:pointer; font-size:14px; padding:10px 16px; margin:4px; border-radius:10px; display:inline-block; width:auto; }
         footer { text-align:center; padding:30px; color:#888; }
         footer a { color:#8b5cf6; margin:0 10px; }
@@ -115,13 +127,16 @@
         </div>
     </div>
 
-    <div class="brush-controls" id="brushControls">
-        <button id="brushToggleBtn" class="btn-secondary">🖌️ Enable Brush Eraser</button>
-        <div id="brushSettings" style="display:none;margin-top:5px;">
+    <!-- صندوق الأدوات المنظم -->
+    <div class="toolbox" id="toolbox">
+        <button id="brushToolBtn" class="tool-btn active">🖌️ Brush</button>
+        <button id="lassenToolBtn" class="tool-btn">✂️ Lasso</button>
+        <div id="toolSettings" class="tool-settings">
             <label>Brush Size: <span id="brushSizeValue">20</span>px</label>
             <input type="range" id="brushSize" min="5" max="80" value="20">
-            <button id="undoBtn" class="btn-secondary">↩ Undo Last Stroke</button>
         </div>
+        <button id="deleteSelectionBtn" class="btn-secondary" style="display:none;">🗑️ Delete Selected Area</button>
+        <button id="undoBtn" class="btn-secondary">↩ Undo</button>
     </div>
 
     <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
@@ -140,7 +155,7 @@
 <script type="module">
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
-// Toast
+// ---- Toast ----
 function showToast(msg) {
     const c = document.getElementById('toast-container');
     const t = document.createElement('div');
@@ -150,7 +165,7 @@ function showToast(msg) {
     setTimeout(() => { if (t.parentNode) t.remove(); }, 3000);
 }
 
-// DOM
+// ---- DOM ----
 const fileInput = document.getElementById('fileInput');
 const removeBtn = document.getElementById('removeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -160,21 +175,311 @@ const preview = document.getElementById('preview');
 const progressContainer = document.getElementById('progress-container');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
-const brushControls = document.getElementById('brushControls');
-const brushToggleBtn = document.getElementById('brushToggleBtn');
-const brushSettings = document.getElementById('brushSettings');
+const toolbox = document.getElementById('toolbox');
+const brushToolBtn = document.getElementById('brushToolBtn');
+const lassenToolBtn = document.getElementById('lassenToolBtn');
+const toolSettings = document.getElementById('toolSettings');
 const brushSizeInput = document.getElementById('brushSize');
 const brushSizeValue = document.getElementById('brushSizeValue');
+const deleteSelectionBtn = document.getElementById('deleteSelectionBtn');
 const undoBtn = document.getElementById('undoBtn');
 
+// ---- الحالة العامة ----
 let currentFile = null;
 let resultBlob = null;
 let ctx = resultCanvas.getContext('2d');
 let undoStack = [];
 
-let brushActive = false;
-let isDrawing = false;
-let brushSize = 20;
+// ============== مدير الأدوات (Tool Manager) ==============
+class ToolManager {
+    constructor() {
+        this.activeTool = null;
+        this.tools = {};
+        this.initTools();
+    }
+
+    initTools() {
+        // تسجيل الأدوات الموجودة
+        this.registerTool('brush', new BrushTool());
+        this.registerTool('lasso', new LassenTool());
+    }
+
+    registerTool(name, toolInstance) {
+        this.tools[name] = toolInstance;
+    }
+
+    activateTool(name) {
+        if (this.activeTool === name) {
+            // إذا ضغط على نفس الأداة، نوقفها
+            this.deactivateAll();
+            return;
+        }
+        this.deactivateAll();
+        if (this.tools[name]) {
+            this.tools[name].activate();
+            this.activeTool = name;
+        }
+    }
+
+    deactivateAll() {
+        if (this.activeTool && this.tools[this.activeTool]) {
+            this.tools[this.activeTool].deactivate();
+        }
+        this.activeTool = null;
+        // إخفاء إعدادات الفرشاة وزر حذف اللاسو
+        toolSettings.style.display = 'none';
+        deleteSelectionBtn.style.display = 'none';
+        // إزالة الكلاس النشط من الأزرار
+        brushToolBtn.classList.remove('active');
+        lassenToolBtn.classList.remove('active');
+    }
+
+    handleCanvasEvent(type, e) {
+        if (this.activeTool && this.tools[this.activeTool]) {
+            this.tools[this.activeTool].handleEvent(type, e);
+        }
+    }
+}
+
+// ============== أداة الفرشاة ==============
+class BrushTool {
+    constructor() {
+        this.brushSize = 20;
+        this.isDrawing = false;
+        this.boundStart = this.start.bind(this);
+        this.boundMove = this.move.bind(this);
+        this.boundEnd = this.end.bind(this);
+    }
+
+    activate() {
+        brushToolBtn.classList.add('active');
+        toolSettings.style.display = 'block';
+        resultCanvas.classList.add('brushing');
+        resultCanvas.addEventListener('touchstart', this.boundStart, { passive: false });
+        resultCanvas.addEventListener('touchmove', this.boundMove, { passive: false });
+        resultCanvas.addEventListener('touchend', this.boundEnd);
+        resultCanvas.addEventListener('touchcancel', this.boundEnd);
+        resultCanvas.addEventListener('mousedown', this.boundStart);
+        resultCanvas.addEventListener('mousemove', this.boundMove);
+        resultCanvas.addEventListener('mouseup', this.boundEnd);
+        resultCanvas.addEventListener('mouseleave', this.boundEnd);
+    }
+
+    deactivate() {
+        resultCanvas.classList.remove('brushing');
+        resultCanvas.removeEventListener('touchstart', this.boundStart);
+        resultCanvas.removeEventListener('touchmove', this.boundMove);
+        resultCanvas.removeEventListener('touchend', this.boundEnd);
+        resultCanvas.removeEventListener('touchcancel', this.boundEnd);
+        resultCanvas.removeEventListener('mousedown', this.boundStart);
+        resultCanvas.removeEventListener('mousemove', this.boundMove);
+        resultCanvas.removeEventListener('mouseup', this.boundEnd);
+        resultCanvas.removeEventListener('mouseleave', this.boundEnd);
+        this.isDrawing = false;
+    }
+
+    start(e) {
+        e.preventDefault();
+        this.isDrawing = true;
+        const p = getCanvasCoords(e);
+        this.eraseAt(p.x, p.y);
+        setTimeout(saveUndoState, 10);
+    }
+
+    move(e) {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        const p = getCanvasCoords(e);
+        this.eraseAt(p.x, p.y);
+    }
+
+    end() {
+        this.isDrawing = false;
+    }
+
+    eraseAt(x, y) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(x, y, this.brushSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+
+    setSize(size) {
+        this.brushSize = size;
+    }
+
+    handleEvent(type, e) {
+        // يستخدمها المدير إذا لزم الأمر
+    }
+}
+
+// ============== أداة اللاسو ==============
+class LassenTool {
+    constructor() {
+        this.points = [];
+        this.isActive = false;
+        this.isDrawing = false;
+        this.boundStart = this.start.bind(this);
+        this.boundMove = this.move.bind(this);
+        this.boundEnd = this.end.bind(this);
+    }
+
+    activate() {
+        lassenToolBtn.classList.add('active');
+        resultCanvas.classList.add('lassoing');
+        resultCanvas.addEventListener('touchstart', this.boundStart, { passive: false });
+        resultCanvas.addEventListener('touchmove', this.boundMove, { passive: false });
+        resultCanvas.addEventListener('touchend', this.boundEnd);
+        resultCanvas.addEventListener('touchcancel', this.boundEnd);
+        resultCanvas.addEventListener('mousedown', this.boundStart);
+        resultCanvas.addEventListener('mousemove', this.boundMove);
+        resultCanvas.addEventListener('mouseup', this.boundEnd);
+    }
+
+    deactivate() {
+        resultCanvas.classList.remove('lassoing');
+        resultCanvas.removeEventListener('touchstart', this.boundStart);
+        resultCanvas.removeEventListener('touchmove', this.boundMove);
+        resultCanvas.removeEventListener('touchend', this.boundEnd);
+        resultCanvas.removeEventListener('touchcancel', this.boundEnd);
+        resultCanvas.removeEventListener('mousedown', this.boundStart);
+        resultCanvas.removeEventListener('mousemove', this.boundMove);
+        resultCanvas.removeEventListener('mouseup', this.boundEnd);
+        // إغلاق أي تحديد مفتوح
+        if (this.points.length > 0) {
+            this.drawFinal();
+        }
+        this.points = [];
+        this.isActive = false;
+        this.isDrawing = false;
+        deleteSelectionBtn.style.display = 'none';
+    }
+
+    start(e) {
+        e.preventDefault();
+        this.isDrawing = true;
+        this.points = [];
+        this.points.push(getCanvasCoords(e));
+        this.isActive = true;
+        deleteSelectionBtn.style.display = 'none';
+    }
+
+    move(e) {
+        if (!this.isDrawing) return;
+        e.preventDefault();
+        this.points.push(getCanvasCoords(e));
+        this.drawPreview();
+    }
+
+    end() {
+        if (!this.isDrawing) return;
+        this.isDrawing = false;
+        if (this.points.length < 3) {
+            this.points = [];
+            this.isActive = false;
+            restoreCurrentImage();
+            return;
+        }
+        this.drawFinal();
+        deleteSelectionBtn.style.display = 'inline-block';
+    }
+
+    drawPreview() {
+        restoreCurrentImage();
+        if (this.points.length < 2) return;
+        ctx.save();
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 3]);
+        ctx.beginPath();
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for (let i = 1; i < this.points.length; i++) {
+            ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    drawFinal() {
+        restoreCurrentImage();
+        if (this.points.length < 3) return;
+        ctx.save();
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for (let i = 1; i < this.points.length; i++) {
+            ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        ctx.restore();
+        this.isActive = true;
+    }
+
+    deleteSelectedArea() {
+        if (!this.isActive || this.points.length < 3) return;
+        saveUndoState();
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.moveTo(this.points[0].x, this.points[0].y);
+        for (let i = 1; i < this.points.length; i++) {
+            ctx.lineTo(this.points[i].x, this.points[i].y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        resultCanvas.toBlob(blob => { if (blob) resultBlob = blob; }, 'image/png');
+        this.points = [];
+        this.isActive = false;
+        deleteSelectionBtn.style.display = 'none';
+        restoreCurrentImage();
+    }
+
+    handleEvent(type, e) {}
+}
+
+// ---- دوال مساعدة عامة ----
+function getCanvasCoords(e) {
+    const rect = resultCanvas.getBoundingClientRect();
+    const scaleX = resultCanvas.width / rect.width;
+    const scaleY = resultCanvas.height / rect.height;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+function restoreCurrentImage() {
+    if (!resultBlob) return;
+    const img = new Image();
+    img.src = URL.createObjectURL(resultBlob);
+    img.onload = () => {
+        ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
+        ctx.drawImage(img, 0, 0);
+    };
+}
+
+// ---- إنشاء مدير الأدوات ----
+const toolManager = new ToolManager();
+
+// ---- أزرار الأدوات ----
+brushToolBtn.addEventListener('click', () => {
+    toolManager.activateTool('brush');
+});
+
+lassenToolBtn.addEventListener('click', () => {
+    toolManager.activateTool('lasso');
+});
+
+deleteSelectionBtn.addEventListener('click', () => {
+    if (toolManager.activeTool === 'lasso') {
+        toolManager.tools.lasso.deleteSelectedArea();
+    }
+});
 
 // ---- رفع الصورة ----
 fileInput.addEventListener('change', (e) => {
@@ -186,92 +491,6 @@ fileInput.addEventListener('change', (e) => {
     preview.style.display = 'flex';
     removeBtn.disabled = false;
     showToast('✅ Image uploaded successfully!');
-});
-
-// ---- الفرشاة ----
-function getCanvasCoords(e) {
-    const rect = resultCanvas.getBoundingClientRect();
-    const scaleX = resultCanvas.width / rect.width;
-    const scaleY = resultCanvas.height / rect.height;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
-}
-
-function eraseAt(x, y) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(x, y, brushSize / 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-}
-
-function brushStart(e) {
-    if (!brushActive) return;
-    e.preventDefault();
-    isDrawing = true;
-    const p = getCanvasCoords(e);
-    eraseAt(p.x, p.y);
-    setTimeout(saveUndoState, 10);
-}
-
-function brushMove(e) {
-    if (!isDrawing || !brushActive) return;
-    e.preventDefault();
-    const p = getCanvasCoords(e);
-    eraseAt(p.x, p.y);
-}
-
-function brushEnd() { isDrawing = false; }
-
-function addBrushListeners() {
-    resultCanvas.addEventListener('touchstart', brushStart, { passive: false });
-    resultCanvas.addEventListener('touchmove', brushMove, { passive: false });
-    resultCanvas.addEventListener('touchend', brushEnd);
-    resultCanvas.addEventListener('touchcancel', brushEnd);
-    resultCanvas.addEventListener('mousedown', brushStart);
-    resultCanvas.addEventListener('mousemove', brushMove);
-    resultCanvas.addEventListener('mouseup', brushEnd);
-    resultCanvas.addEventListener('mouseleave', brushEnd);
-}
-
-function removeBrushListeners() {
-    resultCanvas.removeEventListener('touchstart', brushStart);
-    resultCanvas.removeEventListener('touchmove', brushMove);
-    resultCanvas.removeEventListener('touchend', brushEnd);
-    resultCanvas.removeEventListener('touchcancel', brushEnd);
-    resultCanvas.removeEventListener('mousedown', brushStart);
-    resultCanvas.removeEventListener('mousemove', brushMove);
-    resultCanvas.removeEventListener('mouseup', brushEnd);
-    resultCanvas.removeEventListener('mouseleave', brushEnd);
-}
-
-function enableBrush() {
-    brushActive = true;
-    brushToggleBtn.textContent = '🖌️ Brush Active (tap to disable)';
-    brushSettings.style.display = 'block';
-    resultCanvas.classList.add('brushing');
-    addBrushListeners();
-}
-
-function disableBrush() {
-    brushActive = false;
-    isDrawing = false;
-    brushToggleBtn.textContent = '🖌️ Enable Brush Eraser';
-    brushSettings.style.display = 'none';
-    resultCanvas.classList.remove('brushing');
-    removeBrushListeners();
-}
-
-brushToggleBtn.addEventListener('click', () => {
-    if (brushActive) disableBrush();
-    else enableBrush();
-});
-
-brushSizeInput.addEventListener('input', e => {
-    brushSize = +e.target.value;
-    brushSizeValue.textContent = brushSize;
 });
 
 // ---- تقدم وهمي ----
@@ -300,7 +519,7 @@ function startFakeProgress() {
     };
 }
 
-// ---- معالجة الصورة (مع احتياط) ----
+// ---- معالجة الصورة ----
 async function safePreprocessImage(file) {
     try {
         return await new Promise((resolve, reject) => {
@@ -334,77 +553,4 @@ async function safePreprocessImage(file) {
 
 // ---- إزالة الخلفية ----
 removeBtn.addEventListener('click', async () => {
-    if (!currentFile) return;
-    removeBtn.disabled = true;
-    const fake = startFakeProgress();
-
-    try {
-        const imageToProcess = await safePreprocessImage(currentFile);
-        resultBlob = await removeBackground(imageToProcess, { model: 'isnet_quint8' }).catch(() =>
-            removeBackground(imageToProcess, { model: 'medium' })
-        );
-
-        const img = new Image();
-        img.onload = () => {
-            resultCanvas.width = img.width;
-            resultCanvas.height = img.height;
-            ctx = resultCanvas.getContext('2d');
-            ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-            ctx.drawImage(img, 0, 0);
-            brushControls.style.display = 'block';
-            downloadBtn.style.display = 'block';
-            disableBrush();
-            saveUndoState();
-            fake.complete();
-            showToast('🎉 Background removed! Use brush to refine.');
-        };
-        img.src = URL.createObjectURL(resultBlob);
-    } catch (err) {
-        alert('Error: ' + err.message);
-        progressText.textContent = 'Error';
-    } finally {
-        removeBtn.disabled = false;
-        setTimeout(() => { progressContainer.style.display = 'none'; }, 1500);
-    }
-});
-
-// ---- Undo ----
-function saveUndoState() {
-    if (undoStack.length > 20) undoStack.shift();
-    undoStack.push(resultCanvas.toDataURL());
-}
-
-undoBtn.addEventListener('click', () => {
-    if (undoStack.length > 1) {
-        undoStack.pop();
-        const prev = undoStack[undoStack.length - 1];
-        const img = new Image();
-        img.onload = () => {
-            ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-            ctx.drawImage(img, 0, 0);
-            resultCanvas.toBlob(blob => { if (blob) resultBlob = blob; }, 'image/png');
-        };
-        img.src = prev;
-    }
-});
-
-downloadBtn.addEventListener('click', () => {
-    const a = document.createElement('a');
-    a.href = resultCanvas.toDataURL('image/png');
-    a.download = 'transparent.png';
-    a.click();
-});
-
-function resetAll() {
-    resultBlob = null;
-    disableBrush();
-    brushControls.style.display = 'none';
-    downloadBtn.style.display = 'none';
-    undoStack = [];
-    ctx.clearRect(0, 0, resultCanvas.width, resultCanvas.height);
-    progressContainer.style.display = 'none';
-}
-</script>
-
-</body>
-</html>
+    if (!currentFile
