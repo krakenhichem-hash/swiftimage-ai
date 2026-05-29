@@ -13,11 +13,22 @@
         .hero h1 { font-size:2.5rem; }
         .hero span { color:#8b5cf6; }
         .container { max-width:600px; margin:auto; }
+        
+        /* تنسيق منطقة الرفع باستخدام label */
         .upload-area { 
-            border:2px dashed #333; padding:40px 20px; border-radius:20px; background:#12121c; 
-            text-align:center; margin:20px 0; cursor:pointer; transition:0.3s;
+            display:block;
+            border:2px dashed #333; 
+            padding:40px 20px; 
+            border-radius:20px; 
+            background:#12121c; 
+            text-align:center; 
+            margin:20px 0; 
+            cursor:pointer; 
+            transition:0.3s;
         }
-        .upload-area:active { border-color:#8b5cf6; background:#1a1a2e; }
+        .upload-area:active, .upload-area:hover { border-color:#8b5cf6; background:#1a1a2e; }
+        .upload-area input[type="file"] { display:none; }
+        
         button { 
             display:block; width:100%; margin:10px 0; background:#8b5cf6; color:white; 
             border:none; padding:16px; border-radius:14px; font-size:18px; cursor:pointer;
@@ -28,7 +39,12 @@
         #progress-bar { width:100%; height:8px; background:#222; border-radius:8px; margin:10px 0; display:none; }
         #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:8px; }
         footer { text-align:center; padding:30px; color:#888; }
-        footer a { color:#8b5cf6; }
+        footer a { color:#8b5cf6; margin:0 10px; }
+        
+        /* تحسينات للشاشات الصغيرة */
+        @media (max-width:400px) {
+            .hero h1 { font-size:2rem; }
+        }
     </style>
 </head>
 <body>
@@ -37,30 +53,39 @@
     <h1><span>Remove Backgrounds</span> Instantly</h1>
     <p>AI runs in your browser. 100% private, no upload.</p>
 </section>
+
 <div class="container">
-    <div class="upload-area" id="uploadArea">
+    <!-- منطقة الرفع باستخدام label (تعمل على كل الأجهزة) -->
+    <label class="upload-area" id="uploadLabel">
         <p>📁 Tap to select an image</p>
-        <input type="file" id="fileInput" hidden accept="image/*">
-    </div>
+        <input type="file" id="fileInput" accept="image/*">
+    </label>
+
     <button id="removeBtn" disabled>🔮 Remove Background</button>
     <div id="progress-bar"><div id="progress-fill"></div></div>
+    
     <div class="preview-row" id="preview" style="display:none;">
-        <div><strong>Original</strong><br><img id="originalImg"></div>
-        <div><strong>Result</strong><br><img id="resultImg"></div>
+        <div><strong>Original</strong><br><img id="originalImg" alt="Original"></div>
+        <div><strong>Result</strong><br><img id="resultImg" alt="Result"></div>
     </div>
     <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
 </div>
+
 <footer>
-    <a href="/privacy">Privacy</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
+    <p>
+        <a href="/">Home</a> | 
+        <a href="/privacy.html">Privacy Policy</a> | 
+        <a href="/contact.html">Contact</a> | 
+        <a href="/about.html">About</a>
+    </p>
     <p>© 2026 SwiftImage AI</p>
 </footer>
 
 <script type="module">
-// استيراد المكتبة من مسار بديل مضمون (jsdelivr + @latest)
+// استيراد المكتبة (إصدار مستقر)
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
 // العناصر
-const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
 const removeBtn = document.getElementById('removeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
@@ -69,37 +94,28 @@ const resultImg = document.getElementById('resultImg');
 const preview = document.getElementById('preview');
 const progressBar = document.getElementById('progress-bar');
 const progressFill = document.getElementById('progress-fill');
+const uploadLabel = document.getElementById('uploadLabel');
 
 let currentFile = null;
 
-// ---- رفع الصورة (مع دعم النقر واللمس) ----
-function triggerFileInput() {
-    fileInput.click();
-}
-
-uploadArea.addEventListener('click', triggerFileInput);
-uploadArea.addEventListener('touchend', (e) => {
-    e.preventDefault();
-    triggerFileInput();
-});
-
-// السحب والإفلات (للكمبيوتر)
-uploadArea.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    uploadArea.style.borderColor = '#8b5cf6';
-});
-uploadArea.addEventListener('dragleave', () => {
-    uploadArea.style.borderColor = '#333';
-});
-uploadArea.addEventListener('drop', (e) => {
-    e.preventDefault();
-    uploadArea.style.borderColor = '#333';
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) handleFile(file);
-});
-
+// ---- رفع الصورة (الآن label تقوم بكل شيء تلقائياً) ----
 fileInput.addEventListener('change', (e) => {
     if (e.target.files[0]) handleFile(e.target.files[0]);
+});
+
+// دعم السحب والإفلات للكمبيوتر (اختياري)
+uploadLabel.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadLabel.style.borderColor = '#8b5cf6';
+});
+uploadLabel.addEventListener('dragleave', () => {
+    uploadLabel.style.borderColor = '#333';
+});
+uploadLabel.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadLabel.style.borderColor = '#333';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
 });
 
 function handleFile(file) {
@@ -109,6 +125,7 @@ function handleFile(file) {
     preview.style.display = 'block';
     removeBtn.disabled = false;
     downloadBtn.style.display = 'none';
+    uploadLabel.querySelector('p').innerText = file.name; // تحديث النص
 }
 
 // ---- إزالة الخلفية ----
@@ -137,7 +154,7 @@ removeBtn.addEventListener('click', async () => {
             a.click();
         };
     } catch (err) {
-        alert('Error: ' + err.message);
+        alert('Error removing background: ' + err.message);
         console.error(err);
     } finally {
         removeBtn.disabled = false;
@@ -148,12 +165,12 @@ removeBtn.addEventListener('click', async () => {
     }
 });
 
-// تنبيه إذا حدث خطأ في تحميل المكتبة
-window.onerror = (msg) => {
-    if (msg.includes('Failed to fetch dynamically imported module')) {
-        alert('Failed to load AI library. Please refresh or try a different browser.');
+// تنبيه عند فشل تحميل المكتبة
+window.addEventListener('error', (e) => {
+    if (e.message && e.message.includes('Failed to fetch dynamically imported module')) {
+        alert('Failed to load the AI library. Please check your connection and refresh.');
     }
-};
+});
 </script>
 </body>
 </html>
