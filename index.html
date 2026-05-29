@@ -3,347 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <!-- SEO Meta Tags -->
-    <title>SwiftImage AI - Free Online AI Background Remover</title>
-    <meta name="description" content="Remove image backgrounds instantly using AI. Free online background remover with transparent PNG download. No upload to any server, 100% private.">
-    <meta name="keywords" content="AI background remover, remove bg, transparent png, remove background online, free background remover, image cutout tool">
-    <meta name="robots" content="index, follow">
-    <meta name="author" content="SwiftImage AI">
-    <link rel="canonical" href="https://swiftimage-ai.vercel.app/">
-    
-    <!-- Open Graph / Social -->
-    <meta property="og:title" content="SwiftImage AI - Free Online Background Remover">
-    <meta property="og:description" content="Remove image backgrounds instantly with AI for free. No uploads, fully private.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://swiftimage-ai.vercel.app/">
-    <meta property="og:image" content="https://swiftimage-ai.vercel.app/preview.jpg">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="SwiftImage AI Background Remover">
-    <meta name="twitter:description" content="Free AI background remover online.">
-    <meta name="twitter:image" content="https://swiftimage-ai.vercel.app/preview.jpg">
-    
-    <!-- Structured Data -->
-    <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "WebApplication",
-        "name": "SwiftImage AI",
-        "url": "https://swiftimage-ai.vercel.app",
-        "applicationCategory": "MultimediaApplication",
-        "operatingSystem": "All",
-        "description": "Free AI background remover online tool. Remove backgrounds from images instantly.",
-        "offers": {
-            "@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
-        }
-    }
-    </script>
-
+    <title>SwiftImage AI - Free Background Remover</title>
+    <meta name="description" content="Remove backgrounds instantly with AI. Free, private, no upload.">
     <style>
-        body { background:#080810; color:#fff; font-family:Arial,sans-serif; margin:0; line-height:1.6; }
+        body { background:#080810; color:#fff; font-family:Arial; margin:0; line-height:1.6; }
         header { padding:20px; text-align:center; border-bottom:1px solid #222; }
         .hero { text-align:center; padding:60px 20px 30px; }
-        .hero h1 { font-size:52px; margin:0; }
+        .hero h1 { font-size:52px; }
         .hero span { color:#8b5cf6; }
-        .hero p { font-size:18px; color:#ccc; max-width:600px; margin:15px auto; }
         .container { max-width:1000px; margin:auto; padding:20px; }
-        
-        .upload-area { border:2px dashed #333; padding:60px; text-align:center; border-radius:20px; background:#12121c; cursor:pointer; margin-bottom:20px; transition:border 0.3s; }
-        .upload-area:hover { border-color:#8b5cf6; }
-        .upload-area.dragover { border-color:#8b5cf6; }
-        
-        .btn-group { text-align:center; margin:20px 0; }
-        button { background:#8b5cf6; color:white; border:none; padding:14px 24px; border-radius:12px; cursor:pointer; margin:5px; font-size:16px; }
-        button:disabled { opacity:0.6; cursor:not-allowed; }
-        
-        .preview-row { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:30px 0; }
-        .preview-box { text-align:center; }
-        .preview-box img { max-width:300px; border:1px solid #333; border-radius:12px; }
-        
+        .upload-area { border:2px dashed #333; padding:60px; border-radius:20px; background:#12121c; cursor:pointer; margin-bottom:20px; }
+        button { background:#8b5cf6; color:white; border:none; padding:14px 24px; border-radius:12px; margin:5px; cursor:pointer; }
+        button:disabled { opacity:0.6; }
+        .preview-row { display:flex; justify-content:center; gap:20px; margin:30px 0; }
+        .preview-row img { max-width:300px; border-radius:12px; }
         #progress-bar { width:100%; height:10px; background:#222; border-radius:10px; margin:10px 0; display:none; }
-        #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:10px; transition:width 0.3s; }
-        
-        .content-section { margin-top:60px; padding:30px 0; border-top:1px solid #222; }
-        .content-section h2 { color:#8b5cf6; margin-top:40px; }
-        .content-section h3 { margin-top:30px; }
-        .content-section p, .content-section li { color:#bbb; }
-        .tools-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; margin:30px 0; }
-        .feature-card { background:#12121c; padding:24px; border-radius:18px; border:1px solid #222; text-decoration:none; color:white; }
-        .feature-card:hover { border-color:#8b5cf6; }
-        
-        footer { text-align:center; padding:30px; color:#888; border-top:1px solid #222; margin-top:40px; }
-        footer a { color:#8b5cf6; text-decoration:none; margin:0 10px; }
+        #progress-fill { width:0%; height:100%; background:#8b5cf6; border-radius:10px; }
+        footer { text-align:center; padding:30px; color:#888; border-top:1px solid #222; }
+        footer a { color:#8b5cf6; }
     </style>
 </head>
 <body>
-
-<header>
-    <h2>SwiftImage AI</h2>
-</header>
-
+<header><h2>SwiftImage AI</h2></header>
 <section class="hero">
     <h1><span>Remove Backgrounds</span> Instantly</h1>
-    <p>AI-powered background remover running entirely in your browser. No files uploaded to any server — 100% private and free.</p>
+    <p>AI runs in your browser. 100% private, no upload.</p>
 </section>
-
 <div class="container">
-    <!-- منطقة رفع الصورة -->
     <div class="upload-area" id="dropZone">
-        <p id="dropText">📁 Drag & drop an image here, or click to select</p>
+        <p id="dropText">📁 Drop image here or click</p>
         <input type="file" id="fileInput" hidden accept="image/*">
     </div>
-
-    <!-- أزرار التحكم -->
     <div class="btn-group">
         <button id="preloadBtn">⚡ Preload AI Model</button>
         <button id="removeBtn" disabled>🔮 Remove Background</button>
     </div>
-
-    <!-- شريط التقدم -->
-    <div id="progress-bar">
-        <div id="progress-fill"></div>
-    </div>
-
-    <!-- عرض الصور -->
+    <div id="progress-bar"><div id="progress-fill"></div></div>
     <div class="preview-row" id="preview" style="display:none;">
-        <div class="preview-box">
-            <h4>Original</h4>
-            <img id="originalImg" alt="Original image">
-        </div>
-        <div class="preview-box">
-            <h4>Background Removed</h4>
-            <img id="resultImg" alt="Processed image with transparent background">
-        </div>
+        <div><h4>Original</h4><img id="originalImg"></div>
+        <div><h4>Result</h4><img id="resultImg"></div>
     </div>
-    <div class="btn-group">
-        <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
-    </div>
-
-    <!-- محتوى نصي غني ومطلوب لأدسنس -->
-    <div class="content-section">
-        <h2>Why Use Our AI Background Remover?</h2>
-        <p>
-            Removing backgrounds from images used to require complex software like Photoshop. Our <strong>free online AI background remover</strong> changes that. With just a few clicks, you can extract the subject from any photo and get a clean transparent PNG — no signup, no uploads, and completely free.
-        </p>
-        <p>
-            The tool uses a state-of-the-art AI model (MODNet) that runs locally in your browser. This means your images stay on your device; we never see or store them. It's the safest way to create transparent images for product photos, portraits, logos, social media graphics, and more.
-        </p>
-
-        <h2>Features & Benefits</h2>
-        <div class="tools-grid">
-            <div class="feature-card">
-                <h3>AI Background Remover</h3>
-                <p>Advanced deep learning model precisely detects foreground subjects and removes backgrounds automatically.</p>
-            </div>
-            <div class="feature-card">
-                <h3>Remove BG from Image</h3>
-                <p>Also known as "remove bg" or "image cutout tool", works instantly on JPG, PNG, and WebP files.</p>
-            </div>
-            <div class="feature-card">
-                <h3>Transparent Background Maker</h3>
-                <p>Generate transparent PNGs for product listings, e-commerce, or creative projects.</p>
-            </div>
-            <div class="feature-card">
-                <h3>100% Private & Secure</h3>
-                <p>All processing happens on your device. No image is ever uploaded to a server.</p>
-            </div>
-        </div>
-
-        <h2>How to Use the Tool</h2>
-        <ol>
-            <li>Click <strong>"Preload AI Model"</strong> (first time only — the model will be cached for next visits).</li>
-            <li>Drag & drop your image, or click the upload area to select one.</li>
-            <li>Click <strong>"Remove Background"</strong> and wait a few seconds.</li>
-            <li>Preview the result and click <strong>"Download PNG"</strong> to save your transparent image.</li>
-        </ol>
-
-        <h2>Frequently Asked Questions</h2>
-        <h3>Is it really free?</h3>
-        <p>Yes, completely free. No hidden fees, no premium versions. We're supported by non-intrusive ads (AdSense).</p>
-        <h3>What image formats are supported?</h3>
-        <p>JPG, PNG, WebP, and most common formats. The output is always a high-quality PNG with transparency.</p>
-        <h3>Do I need to install anything?</h3>
-        <p>No. Everything works directly in your web browser (Chrome, Edge, Firefox, Safari).</p>
-        <h3>Where is my image stored?</h3>
-        <p>Nowhere. The AI model processes the image locally on your device. We never receive, store, or share your files.</p>
-    </div>
+    <button id="downloadBtn" style="display:none;">⬇ Download PNG</button>
 </div>
-
 <footer>
-    <p>© 2026 SwiftImage AI</p>
-    <p>
-        <a href="/">Home</a> | 
-        <a href="/privacy">Privacy Policy</a> | 
-        <a href="/contact">Contact Us</a> | 
-        <a href="/about">About</a>
-    </p>
+    <a href="/privacy">Privacy</a> | <a href="/contact">Contact</a> | <a href="/about">About</a>
 </footer>
 
 <script type="module">
-    // نستخدم pipeline الجاهزة بدلاً من AutoModel اليدوي
-    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+import { AutoModel, Tensor } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
 
-    // عناصر DOM
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.getElementById('fileInput');
-    const preloadBtn = document.getElementById('preloadBtn');
-    const removeBtn = document.getElementById('removeBtn');
-    const downloadBtn = document.getElementById('downloadBtn');
-    const originalImg = document.getElementById('originalImg');
-    const resultImg = document.getElementById('resultImg');
-    const preview = document.getElementById('preview');
-    const progressBar = document.getElementById('progress-bar');
-    const progressFill = document.getElementById('progress-fill');
-    const dropText = document.getElementById('dropText');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const preloadBtn = document.getElementById('preloadBtn');
+const removeBtn = document.getElementById('removeBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const originalImg = document.getElementById('originalImg');
+const resultImg = document.getElementById('resultImg');
+const preview = document.getElementById('preview');
+const progressBar = document.getElementById('progress-bar');
+const progressFill = document.getElementById('progress-fill');
+const dropText = document.getElementById('dropText');
 
-    let segmenter = null; // ستكون pipeline
-    let currentFile = null;
+let model = null;
+let currentFile = null;
 
-    // ---- تفعيل السحب والإفلات ----
-    dropZone.addEventListener('click', () => fileInput.click());
-    dropZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropZone.classList.add('dragover');
-    });
-    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-    dropZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropZone.classList.remove('dragover');
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) handleFile(file);
-    });
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files[0]) handleFile(e.target.files[0]);
-    });
+// ---- رفع الصورة ----
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor='#8b5cf6'; });
+dropZone.addEventListener('dragleave', () => dropZone.style.borderColor='#333');
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.style.borderColor='#333';
+    const file = e.dataTransfer.files[0];
+    if (file?.type?.startsWith('image/')) handleFile(file);
+});
+fileInput.addEventListener('change', e => { if(e.target.files[0]) handleFile(e.target.files[0]); });
 
-    function handleFile(file) {
-        currentFile = file;
-        originalImg.src = URL.createObjectURL(file);
-        resultImg.src = '';
-        preview.style.display = 'flex';
+function handleFile(file) {
+    currentFile = file;
+    originalImg.src = URL.createObjectURL(file);
+    resultImg.src = '';
+    preview.style.display = 'flex';
+    removeBtn.disabled = false;
+    downloadBtn.style.display = 'none';
+    dropText.innerText = file.name;
+}
+
+// ---- تحميل النموذج ----
+preloadBtn.addEventListener('click', async () => {
+    if (model) { alert('✅ Model already loaded'); return; }
+    preloadBtn.disabled = true;
+    preloadBtn.textContent = 'Loading...';
+    try {
+        model = await AutoModel.from_pretrained('Xenova/modnet', {
+            config: { model_type: 'custom' },
+            quantized: true
+        });
+        preloadBtn.textContent = '✅ Ready';
+    } catch(err) {
+        alert('Error: ' + err.message);
+        preloadBtn.textContent = '⚡ Preload AI Model';
+    } finally { preloadBtn.disabled = false; }
+});
+
+// ---- إزالة الخلفية ----
+removeBtn.addEventListener('click', async () => {
+    if (!model) { alert('Preload model first'); return; }
+    if (!currentFile) return;
+
+    removeBtn.disabled = true;
+    progressBar.style.display = 'block';
+    progressFill.style.width = '10%';
+
+    try {
+        // تحويل الصورة إلى Image element للحصول على الأبعاد
+        const img = await loadImage(currentFile);
+        const width = img.width;
+        const height = img.height;
+
+        // تحويل الصورة إلى tensor مناسب [1,3,H,W] و type float32
+        const tensor = imageToTensor(img);
+
+        progressFill.style.width = '50%';
+
+        // تشغيل النموذج – يجب تمرير tensor باسم 'input'
+        const { output } = await model({ input: tensor });
+
+        progressFill.style.width = '80%';
+
+        // output قناع [1,1,H,W] أو [1,H,W]، نستخرج alpha mask
+        const maskData = output.data; // Float32Array
+        const maskLength = maskData.length;
+        const expectedLen = width * height;
+        // قد يكون القناع (1,1,H,W) مضغوطًا، نأخذ القيم
+        let mask;
+        if (maskLength === expectedLen) {
+            mask = maskData;
+        } else if (maskLength === expectedLen * 4) {
+            // ربما كان (1,4,H,W) نأخذ القناة الأولى
+            mask = new Float32Array(expectedLen);
+            for (let i = 0; i < expectedLen; i++) mask[i] = maskData[i * 4];
+        } else {
+            // افتراض أن القناع هو (1,1,H,W) لكن length قد يكون H*W (صحيح)
+            mask = maskData;
+        }
+
+        // رسم الصورة الأصلية على canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        // تطبيق الشفافية
+        const imageData = ctx.getImageData(0, 0, width, height);
+        for (let i = 0; i < expectedLen; i++) {
+            // MODNet يخرج 1 للخلفية و0 للأمامية (أو العكس حسب الإصدار)
+            // القناع الذي نحصل عليه غالباً 1 = foreground, 0 = background
+            // إذا ظهرت الخلفية بيضاء والعكس، نعكس القيمة
+            const alpha = Math.round(mask[i] * 255);
+            // للتأكد: جرب alpha = 255 - alpha لو كان المقلوب
+            imageData.data[i * 4 + 3] = alpha;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        const resultUrl = canvas.toDataURL('image/png');
+        resultImg.src = resultUrl;
+        downloadBtn.style.display = 'inline-block';
+        downloadBtn.onclick = () => {
+            const a = document.createElement('a');
+            a.href = resultUrl;
+            a.download = 'transparent.png';
+            a.click();
+        };
+
+        progressFill.style.width = '100%';
+    } catch(err) {
+        alert('Error: ' + err.message);
+        console.error(err);
+    } finally {
         removeBtn.disabled = false;
-        downloadBtn.style.display = 'none';
-        dropText.innerText = file.name;
+        setTimeout(() => { progressBar.style.display = 'none'; progressFill.style.width = '0%'; }, 1000);
     }
+});
 
-    // ---- تحميل نموذج AI (الآن pipeline) ----
-    preloadBtn.addEventListener('click', async () => {
-        if (segmenter) {
-            alert('✅ Model already loaded!');
-            return;
-        }
-        preloadBtn.disabled = true;
-        preloadBtn.textContent = 'Loading AI model... (this may take a few seconds)';
-        try {
-            segmenter = await pipeline('image-segmentation', 'Xenova/modnet');
-            preloadBtn.textContent = '✅ Model Ready';
-            alert('AI model loaded successfully! You can now remove backgrounds.');
-        } catch (err) {
-            alert('Error loading model: ' + err.message);
-            preloadBtn.textContent = '⚡ Preload AI Model';
-        } finally {
-            preloadBtn.disabled = false;
-        }
+// ---- دوال مساعدة ----
+function loadImage(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
     });
+}
 
-    // ---- حذف الخلفية (باستخدام pipeline) ----
-    removeBtn.addEventListener('click', async () => {
-        if (!segmenter) {
-            alert('Please preload the AI model first!');
-            return;
-        }
-        if (!currentFile) return;
+function imageToTensor(img) {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+    const pixels = imageData.data; // Uint8ClampedArray RGBA
+    const size = img.width * img.height;
+    const floatData = new Float32Array(3 * size);
 
-        removeBtn.disabled = true;
-        preloadBtn.disabled = true;
-        progressBar.style.display = 'block';
-        progressFill.style.width = '10%';
-
-        try {
-            // إنشاء عنصر صورة للحصول على الأبعاد
-            const imgElement = await createImageElement(currentFile);
-            const width = imgElement.width;
-            const height = imgElement.height;
-
-            progressFill.style.width = '40%';
-
-            // pipeline ياخذ HTMLImageElement أو URL ويعيد مباشرة مصفوفة من الأقنعة
-            const result = await segmenter(imgElement);
-
-            progressFill.style.width = '70%';
-
-            // result عادة [{ mask: Float32Array, label: 'background' }, ...] نأخذ القناع الأول (الخلفية)
-            // أو قد يكون result مباشرة mask. نتعامل مع الحالتين.
-            let maskData;
-            if (Array.isArray(result) && result[0]?.mask) {
-                maskData = result[0].mask.data;
-            } else if (result?.mask) {
-                maskData = result.mask.data;
-            } else {
-                throw new Error('Unexpected pipeline output format');
-            }
-
-            // رسم الصورة الأصلية على canvas
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(imgElement, 0, 0);
-
-            // تطبيق القناع
-            const imageData = ctx.getImageData(0, 0, width, height);
-            for (let i = 0; i < maskData.length; i++) {
-                // القناع قيمة 0..1، حيث 0 = خلفية (شفاف)، 1 = أمامية (معتم)
-                imageData.data[i * 4 + 3] = Math.round(maskData[i] * 255);
-            }
-            ctx.putImageData(imageData, 0, 0);
-
-            const resultUrl = canvas.toDataURL('image/png');
-            resultImg.src = resultUrl;
-            downloadBtn.style.display = 'inline-block';
-
-            downloadBtn.onclick = () => {
-                const a = document.createElement('a');
-                a.href = resultUrl;
-                a.download = 'transparent.png';
-                a.click();
-            };
-
-            progressFill.style.width = '100%';
-        } catch (err) {
-            alert('Error: ' + err.message);
-            console.error(err);
-        } finally {
-            removeBtn.disabled = false;
-            preloadBtn.disabled = false;
-            setTimeout(() => {
-                progressBar.style.display = 'none';
-                progressFill.style.width = '0%';
-            }, 1500);
-        }
-    });
-
-    // دالة مساعدة: تحويل File إلى HTMLImageElement
-    function createImageElement(file) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            img.onerror = reject;
-            img.src = URL.createObjectURL(file);
-        });
+    // تحويل إلى RGB وتقسيم على 255
+    for (let i = 0; i < size; i++) {
+        floatData[i] = pixels[i * 4] / 255.0;
+        floatData[size + i] = pixels[i * 4 + 1] / 255.0;
+        floatData[2 * size + i] = pixels[i * 4 + 2] / 255.0;
     }
+    return new Tensor('float32', floatData, [1, 3, img.height, img.width]);
+}
 </script>
-
-<!-- تسجيل Service Worker -->
-<script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/sw.js').catch(() => {});
-        });
-    }
-</script>
-
 </body>
 </html>
