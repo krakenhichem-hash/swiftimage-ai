@@ -15,14 +15,16 @@
         .container { max-width:600px; margin:auto; }
 
         .upload-area {
-            border:2px dashed #333; padding:30px 20px; border-radius:20px;
-            background:#12121c; text-align:center; margin:20px 0;
+            border:2px dashed #333;
+            padding:40px 20px;
+            border-radius:20px;
+            background:#12121c;
+            text-align:center;
+            margin:20px 0;
+            cursor:pointer;
+            transition:0.3s;
         }
-        .upload-area p { margin-bottom:15px; font-size:16px; }
-        .upload-area input[type="file"] {
-            display:inline-block; background:#222; color:#fff;
-            padding:12px 20px; border-radius:10px; border:1px solid #444; cursor:pointer;
-        }
+        .upload-area:hover { border-color:#8b5cf6; }
 
         button {
             display:block; width:100%; margin:10px 0; background:#8b5cf6; color:white;
@@ -93,9 +95,9 @@
 </section>
 
 <div class="container">
-    <div class="upload-area">
-        <p>📁 Select an image to remove its background</p>
-        <input type="file" id="fileInput" accept="image/*">
+    <div class="upload-area" id="uploadArea">
+        <p>📁 Tap here to select an image</p>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
     </div>
 
     <button id="removeBtn" disabled>🔮 Remove Background</button>
@@ -160,6 +162,7 @@ const preview = document.getElementById('preview');
 const progressContainer = document.getElementById('progress-container');
 const progressFill = document.getElementById('progress-fill');
 const progressText = document.getElementById('progress-text');
+const uploadArea = document.getElementById('uploadArea');
 const brushControls = document.getElementById('brushControls');
 const brushToggleBtn = document.getElementById('brushToggleBtn');
 const brushSettings = document.getElementById('brushSettings');
@@ -176,6 +179,9 @@ let brushActive = false;
 let isDrawing = false;
 let brushSize = 20;
 
+// ---- فتح نافذة رفع الملفات عند النقر على منطقة الرفع ----
+uploadArea.addEventListener('click', () => fileInput.click());
+
 // ---- رفع الصورة ----
 fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -185,6 +191,7 @@ fileInput.addEventListener('change', (e) => {
     originalImg.src = URL.createObjectURL(file);
     preview.style.display = 'flex';
     removeBtn.disabled = false;
+    uploadArea.querySelector('p').innerText = file.name;
     showToast('✅ Image uploaded successfully!');
 });
 
