@@ -201,6 +201,32 @@
     let processor = null;
     let currentFile = null;
 
+    // ---- دالة مساعدة: تحويل ملف إلى RawImage باستخدام canvas ----
+    async function fileToRawImage(file) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                // رسم الصورة على canvas للحصول على بيانات الصورة
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                // استخدام RawImage.fromCanvas (موجودة في الإصدارات الحديثة)
+                try {
+                    const raw = RawImage.fromCanvas(canvas);
+                    resolve(raw);
+                } catch (e) {
+                    // إذا لم تدعم fromCanvas، نستخدم fromURL مع dataURL
+                    const dataURL = canvas.toDataURL('image/png');
+                    RawImage.fromURL(dataURL).then(resolve).catch(reject);
+                }
+            };
+            img.onerror = reject;
+            img.src = URL.createObjectURL(file);
+        });
+    }
+
     // ---- تفعيل السحب والإفلات ----
     dropZone.addEventListener('click', () => fileInput.click());
     dropZone.addEventListener('dragover', (e) => {
@@ -249,7 +275,7 @@
         }
     });
 
-    // ---- حذف الخلفية (تم التصحيح هنا) ----
+    // ---- حذف الخلفية (التعديل الأساسي هنا) ----
     removeBtn.addEventListener('click', async () => {
         if (!model || !processor) {
             alert('Please preload the AI model first!');
@@ -263,8 +289,8 @@
         progressFill.style.width = '10%';
 
         try {
-            // استخدام fromBlob بدلاً من fromURL لإصلاح مشكلة "failed to fetch"
-            const img = await RawImage.fromBlob(currentFile);
+            // استخدام الدالة الجديدة لتحويل الملف إلى RawImage
+            const img = await fileToRawImage(currentFile);
             
             progressFill.style.width = '40%';
             const inputs = await processor(img);
@@ -276,13 +302,12 @@
             const width = img.width;
             const height = img.height;
 
-            // رسم الصورة الأصلية على canvas
+            // رسم الصورة الأصلية على canvas (للحصول على imageData)
+            const htmlImage = await rawImageToHtml(img);
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
-
-            const htmlImage = await rawImageToHtml(img);
             ctx.drawImage(htmlImage, 0, 0);
             const imageData = ctx.getImageData(0, 0, width, height);
 
@@ -318,7 +343,7 @@
         }
     });
 
-    // تحويل RawImage إلى HTMLImageElement
+    // تحويل RawImage إلى HTMLImageElement (لرسمها على canvas)
     async function rawImageToHtml(rawImage) {
         const blob = await rawImage.toBlob();
         return new Promise((resolve, reject) => {
@@ -326,13 +351,6 @@
             img.onload = () => resolve(img);
             img.onerror = reject;
             img.src = URL.createObjectURL(blob);
-        });
-    }
-
-    // محاولة التحميل التلقائي عند الخمول (اختياري)
-    if (window.requestIdleCallback) {
-        requestIdleCallback(() => {
-            // لا نفعل شيء، الأفضل ترك المستخدم يضغط الزر ليقرأ التعليمات
         });
     }
 </script>
@@ -347,4 +365,4 @@
 </script>
 
 </body>
-    </html>
+</html>
