@@ -182,7 +182,8 @@
 </footer>
 
 <script type="module">
-    import { AutoModel, AutoProcessor, RawImage } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
+    // نستخدم pipeline الجاهزة بدلاً من AutoModel اليدوي
+    import { pipeline } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.2';
 
     // عناصر DOM
     const dropZone = document.getElementById('dropZone');
@@ -197,35 +198,8 @@
     const progressFill = document.getElementById('progress-fill');
     const dropText = document.getElementById('dropText');
 
-    let model = null;
-    let processor = null;
+    let segmenter = null; // ستكون pipeline
     let currentFile = null;
-
-    // ---- دالة مساعدة: تحويل ملف إلى RawImage باستخدام canvas ----
-    async function fileToRawImage(file) {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                // رسم الصورة على canvas للحصول على بيانات الصورة
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                // استخدام RawImage.fromCanvas (موجودة في الإصدارات الحديثة)
-                try {
-                    const raw = RawImage.fromCanvas(canvas);
-                    resolve(raw);
-                } catch (e) {
-                    // إذا لم تدعم fromCanvas، نستخدم fromURL مع dataURL
-                    const dataURL = canvas.toDataURL('image/png');
-                    RawImage.fromURL(dataURL).then(resolve).catch(reject);
-                }
-            };
-            img.onerror = reject;
-            img.src = URL.createObjectURL(file);
-        });
-    }
 
     // ---- تفعيل السحب والإفلات ----
     dropZone.addEventListener('click', () => fileInput.click());
@@ -254,17 +228,16 @@
         dropText.innerText = file.name;
     }
 
-    // ---- تحميل نموذج AI ----
+    // ---- تحميل نموذج AI (الآن pipeline) ----
     preloadBtn.addEventListener('click', async () => {
-        if (model) {
+        if (segmenter) {
             alert('✅ Model already loaded!');
             return;
         }
         preloadBtn.disabled = true;
         preloadBtn.textContent = 'Loading AI model... (this may take a few seconds)';
         try {
-            model = await AutoModel.from_pretrained('Xenova/modnet', { config: { model_type: 'custom' } });
-            processor = await AutoProcessor.from_pretrained('Xenova/modnet');
+            segmenter = await pipeline('image-segmentation', 'Xenova/modnet');
             preloadBtn.textContent = '✅ Model Ready';
             alert('AI model loaded successfully! You can now remove backgrounds.');
         } catch (err) {
@@ -275,9 +248,9 @@
         }
     });
 
-    // ---- حذف الخلفية (التعديل الأساسي هنا) ----
+    // ---- حذف الخلفية (باستخدام pipeline) ----
     removeBtn.addEventListener('click', async () => {
-        if (!model || !processor) {
+        if (!segmenter) {
             alert('Please preload the AI model first!');
             return;
         }
@@ -289,32 +262,41 @@
         progressFill.style.width = '10%';
 
         try {
-            // استخدام الدالة الجديدة لتحويل الملف إلى RawImage
-            const img = await fileToRawImage(currentFile);
-            
+            // إنشاء عنصر صورة للحصول على الأبعاد
+            const imgElement = await createImageElement(currentFile);
+            const width = imgElement.width;
+            const height = imgElement.height;
+
             progressFill.style.width = '40%';
-            const inputs = await processor(img);
+
+            // pipeline ياخذ HTMLImageElement أو URL ويعيد مباشرة مصفوفة من الأقنعة
+            const result = await segmenter(imgElement);
+
             progressFill.style.width = '70%';
-            const { outputs } = await model(inputs);
 
-            // قناع alpha
-            const mask = outputs[0].data;
-            const width = img.width;
-            const height = img.height;
+            // result عادة [{ mask: Float32Array, label: 'background' }, ...] نأخذ القناع الأول (الخلفية)
+            // أو قد يكون result مباشرة mask. نتعامل مع الحالتين.
+            let maskData;
+            if (Array.isArray(result) && result[0]?.mask) {
+                maskData = result[0].mask.data;
+            } else if (result?.mask) {
+                maskData = result.mask.data;
+            } else {
+                throw new Error('Unexpected pipeline output format');
+            }
 
-            // رسم الصورة الأصلية على canvas (للحصول على imageData)
-            const htmlImage = await rawImageToHtml(img);
+            // رسم الصورة الأصلية على canvas
             const canvas = document.createElement('canvas');
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(htmlImage, 0, 0);
-            const imageData = ctx.getImageData(0, 0, width, height);
+            ctx.drawImage(imgElement, 0, 0);
 
             // تطبيق القناع
-            for (let i = 0; i < mask.length; i++) {
-                const alpha = Math.round(mask[i] * 255);
-                imageData.data[i * 4 + 3] = alpha;
+            const imageData = ctx.getImageData(0, 0, width, height);
+            for (let i = 0; i < maskData.length; i++) {
+                // القناع قيمة 0..1، حيث 0 = خلفية (شفاف)، 1 = أمامية (معتم)
+                imageData.data[i * 4 + 3] = Math.round(maskData[i] * 255);
             }
             ctx.putImageData(imageData, 0, 0);
 
@@ -343,19 +325,18 @@
         }
     });
 
-    // تحويل RawImage إلى HTMLImageElement (لرسمها على canvas)
-    async function rawImageToHtml(rawImage) {
-        const blob = await rawImage.toBlob();
+    // دالة مساعدة: تحويل File إلى HTMLImageElement
+    function createImageElement(file) {
         return new Promise((resolve, reject) => {
             const img = new Image();
             img.onload = () => resolve(img);
             img.onerror = reject;
-            img.src = URL.createObjectURL(blob);
+            img.src = URL.createObjectURL(file);
         });
     }
 </script>
 
-<!-- تسجيل Service Worker للتخزين المؤقت -->
+<!-- تسجيل Service Worker -->
 <script>
     if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
