@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SwiftImage AI - Free Background Remover</title>
+    <meta name="description" content="Remove backgrounds instantly with AI. Free, private, no upload.">
+    <!-- تحميل مسبق للمكتبة -->
+    <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm">
     <style>
         * { box-sizing: border-box; }
         body { background:#080810; color:#fff; font-family:Arial,sans-serif; margin:0; padding:0 15px; }
@@ -17,7 +20,7 @@
             border:2px dashed #333; padding:30px 20px; border-radius:20px;
             background:#12121c; text-align:center; margin:20px 0;
         }
-        .upload-area p { margin-bottom:15px; }
+        .upload-area p { margin-bottom:15px; font-size:16px; }
         .upload-area input[type="file"] {
             display:inline-block; background:#222; color:#fff;
             padding:12px 20px; border-radius:10px; border:1px solid #444; cursor:pointer;
@@ -78,10 +81,21 @@
         @keyframes slideDown { from { opacity:0; transform:translateY(-20px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeOut { to { opacity:0; transform:translateY(-10px); } }
 
+        /* مؤشر تحميل المكتبة */
+        #ai-loading {
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            background: #8b5cf6; color: #fff; padding: 10px 24px; border-radius: 30px;
+            font-size: 14px; z-index: 10000; display: block;
+        }
+
         @media (max-width:400px) { .hero h1 { font-size:2rem; } }
     </style>
 </head>
 <body>
+
+<!-- مؤشر تحميل المكتبة -->
+<div id="ai-loading">⏳ Loading AI engine...</div>
+
 <div id="toast-container"></div>
 
 <header><h2>SwiftImage AI</h2></header>
@@ -113,7 +127,7 @@
         </div>
     </div>
 
-    <!-- الأدوات (ستظهر بعد الإزالة) -->
+    <!-- الأدوات -->
     <div class="toolbox" id="toolbox">
         <button id="toolEraser" class="tool-btn">🧹 Erase</button>
         <button id="toolRestore" class="tool-btn">🔄 Restore</button>
@@ -142,7 +156,7 @@
     <p>© 2026 SwiftImage AI</p>
 </footer>
 
-<!-- رفع الصورة وزر الإزالة (مستقل تماماً) -->
+<!-- رفع الصورة وزر الإزالة (مستقل) -->
 <script>
     const fileInput = document.getElementById('fileInput');
     const originalImg = document.getElementById('originalImg');
@@ -184,8 +198,11 @@
     });
 </script>
 
-<!-- الأدوات (Module) -->
+<!-- جميع الأدوات والـ Tool Manager -->
 <script type="module">
+// إخفاء مؤشر التحميل
+document.getElementById('ai-loading').style.display = 'none';
+
 import { removeBackground } from 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1/+esm';
 
 // ---------- Toast ----------
@@ -264,10 +281,8 @@ class BaseTool {
 class EraserTool extends BaseTool {
     constructor(manager, sizeInput, sizeLabel) {
         super(manager);
-        this.size = 20;
-        this.isDrawing = false;
-        this.sizeInput = sizeInput;
-        this.sizeLabel = sizeLabel;
+        this.size = 20; this.isDrawing = false;
+        this.sizeInput = sizeInput; this.sizeLabel = sizeLabel;
         this._start = this.start.bind(this);
         this._move = this.move.bind(this);
         this._end = this.end.bind(this);
@@ -276,28 +291,20 @@ class EraserTool extends BaseTool {
         toolEraser.classList.add('active');
         brushSettings.style.display = 'block';
         this.sizeInput.addEventListener('input', this._sizeChange);
-        this.sizeInput.value = this.size;
-        this.sizeLabel.textContent = this.size;
+        this.sizeInput.value = this.size; this.sizeLabel.textContent = this.size;
         const c = this.manager.canvas;
-        c.addEventListener('mousedown', this._start);
-        c.addEventListener('mousemove', this._move);
-        c.addEventListener('mouseup', this._end);
-        c.addEventListener('mouseleave', this._end);
+        c.addEventListener('mousedown', this._start); c.addEventListener('mousemove', this._move);
+        c.addEventListener('mouseup', this._end); c.addEventListener('mouseleave', this._end);
         c.addEventListener('touchstart', this._start, {passive:false});
         c.addEventListener('touchmove', this._move, {passive:false});
-        c.addEventListener('touchend', this._end);
-        c.addEventListener('touchcancel', this._end);
+        c.addEventListener('touchend', this._end); c.addEventListener('touchcancel', this._end);
     }
     deactivate() {
         const c = this.manager.canvas;
-        c.removeEventListener('mousedown', this._start);
-        c.removeEventListener('mousemove', this._move);
-        c.removeEventListener('mouseup', this._end);
-        c.removeEventListener('mouseleave', this._end);
-        c.removeEventListener('touchstart', this._start);
-        c.removeEventListener('touchmove', this._move);
-        c.removeEventListener('touchend', this._end);
-        c.removeEventListener('touchcancel', this._end);
+        c.removeEventListener('mousedown', this._start); c.removeEventListener('mousemove', this._move);
+        c.removeEventListener('mouseup', this._end); c.removeEventListener('mouseleave', this._end);
+        c.removeEventListener('touchstart', this._start); c.removeEventListener('touchmove', this._move);
+        c.removeEventListener('touchend', this._end); c.removeEventListener('touchcancel', this._end);
         this.sizeInput.removeEventListener('input', this._sizeChange);
         this.isDrawing = false;
     }
@@ -423,6 +430,4 @@ class LassoTool extends BaseTool {
         if (!this.isDrawing) return; this.isDrawing = false;
         if (this.points.length < 3) { this.points = []; this.isActive = false; restoreCurrentImage(); return; }
         this.drawFinal(); deleteSelectionBtn.style.display = 'inline-block';
-    }
-    drawPreview() { restoreCurrentImage(); if (this.points.length < 2) return; const ctx = this.manager.canvas.getContext('2d'); ctx.save(); ctx.strokeStyle='#8b5cf6'; ctx.lineWidth=2; ctx.setLineDash([6,3]); ctx.beginPath(); ctx.moveTo(this.points[0].x, this.points[0].y); for (let i=1;i<this.points.length;i++) ctx.lineTo(this.points[i].x, this.points[i].y); ctx.stroke(); ctx.restore(); }
-    drawFinal() { restoreCurrentImage(); if (this.points.length < 3) return; const ctx = this.manager.canvas.getContext('2d'); ctx.save(); ctx.strokeStyle='#8b5cf6'; ctx.lineWidth=2; ctx.setLineDash([]); ctx.beginPath();
+    
